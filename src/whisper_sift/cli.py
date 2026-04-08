@@ -150,9 +150,9 @@ def _normalize_argv(argv: Sequence[str]) -> list[str]:
 
 def _handle_transcribe(args: argparse.Namespace) -> int:
     from whisper_sift.runtime.dependencies import ensure_transcription_dependencies
-    from whisper_sift.services.transcription import transcribe_files
 
     ensure_transcription_dependencies()
+    from whisper_sift.services.transcription import transcribe_files
 
     options = TranscriptionOptions(
         files=args.files,
@@ -183,10 +183,10 @@ def _handle_extract_questions(args: argparse.Namespace) -> int:
 
 def _handle_pipeline(args: argparse.Namespace) -> int:
     from whisper_sift.runtime.dependencies import ensure_transcription_dependencies
-    from whisper_sift.services.questions import extract_questions_from_files
-    from whisper_sift.services.transcription import transcribe_files
 
     ensure_transcription_dependencies()
+    from whisper_sift.services.questions import extract_questions_from_files
+    from whisper_sift.services.transcription import transcribe_files
 
     transcript_dir = args.output_dir.resolve()
     question_dir = args.questions_dir.resolve() if args.questions_dir else transcript_dir

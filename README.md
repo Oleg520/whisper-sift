@@ -26,6 +26,8 @@
 whisper-sift/
 ├─ pyproject.toml
 ├─ README.md
+├─ clients/
+│  └─ java-cli/
 ├─ transcribe_whisper.py
 └─ src/
    └─ whisper_sift/
@@ -49,6 +51,7 @@ whisper-sift/
 - Python 3.11+
 - Windows / Linux / macOS
 - Доступ в интернет при первом запуске транскрибации, если пакеты еще не установлены
+- Для Java CLI: Java 21+ и доступный `python` в `PATH` либо явный `--python`
 
 ## Быстрый старт
 
@@ -71,6 +74,36 @@ python transcribe_whisper.py transcribe interview_part1.mkv interview_part2.mkv
 ```powershell
 python -m pip install -e .
 whisper-sift --help
+```
+
+### Вариант 3. Java CLI через Maven
+
+В репозитории также есть Java-версия CLI в [clients/java-cli](./clients/java-cli), которая использует текущий Python/Whisper runtime для транскрибации и свою Java-логику для извлечения вопросов.
+
+Сборка:
+
+```powershell
+cd clients/java-cli
+mvn package
+```
+
+Тесты:
+
+```powershell
+cd clients/java-cli
+mvn test
+```
+
+Запуск:
+
+```powershell
+java -jar target/whisper-sift-java-cli.jar --help
+```
+
+При необходимости можно явно указать Python и корень проекта:
+
+```powershell
+java -jar target/whisper-sift-java-cli.jar transcribe interview.mkv --python py --project-root ..\..
 ```
 
 ## Команды
@@ -157,6 +190,12 @@ python transcribe_whisper.py extract-questions interview_part1.txt interview_par
 
 ```powershell
 python -m whisper_sift --help
+```
+
+Пример Java CLI:
+
+```powershell
+java -jar clients/java-cli/target/whisper-sift-java-cli.jar transcribe interview.mkv --model small --device auto
 ```
 
 ## Как это работает
