@@ -13,8 +13,9 @@ GENERIC_SPEAKER_LINE_RE = re.compile(
 )
 QUESTION_LIKE_RE = re.compile(
     r"^(?:"
-    r"что|как|почему|зачем|когда|где|кто|сколько|какой|какая|какие|какое|каким|какую|"
-    r"чем|можете|можешь|можно|есть ли|был ли|были ли|"
+    r"что(?!-)|как(?!-)|почему|зачем|когда(?!-)|где(?!-)|кто(?!-)|сколько|"
+    r"какой(?!-)|какая(?!-)|какие(?!-)|какое(?!-)|каким(?!-)|какую(?!-)|какого(?!-)|какому(?!-)|"
+    r"чем(?!-)|можете|можешь|можно|есть ли|был ли|были ли|"
     r"расскажите|расскажи|подскажите|объясните|верно ли|правильно ли|"
     r"я правильно понимаю|я верно понимаю|если я правильно понимаю|"
     r"правильно понимаю|верно понимаю|"
@@ -26,15 +27,23 @@ QUESTION_LIKE_RE = re.compile(
 ANSWER_LIKE_RE = re.compile(
     r"^(?:"
     r"да|нет|ага|ну|смотрите|слушайте|хорошо|конечно|скорее|получается|"
-    r"наверное|в целом|на самом деле|"
+    r"наверное|в целом|на самом деле|если честно|честно говоря|не помню|"
     r"я|мы|мне|нам|у нас|в нашей команде|в компании|на проекте|на последнем проекте|"
-    r"на прошлом проекте|обычно я|обычно мы|"
+    r"на прошлом проекте|обычно я|обычно мы|это|было|есть|"
     r"actually|well|yes|no|i|we|our team|in our team|on the last project"
     r")\b",
     re.IGNORECASE,
 )
 CANONICAL_WHITESPACE_RE = re.compile(r"\s+")
 QUESTION_TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]+")
+LEADING_FILLER_RE = re.compile(
+    r"^(?:(?:а|ну|вот|так|и|слушай|смотри)\s*[,:\-]?\s*)+",
+    re.IGNORECASE,
+)
+FILLER_TOKEN_RE = re.compile(
+    r"^(?:а|ну|вот|так|и|то|есть|да|наверное|если|честно|вообще|как|бы|смотри|слушай)$",
+    re.IGNORECASE,
+)
 KNOWN_INTERVIEWER_LABELS = (
     "interviewer",
     "интервьюер",
@@ -138,6 +147,8 @@ def _extract_questions_from_text(
             question = cleaned if cleaned.endswith("?") else f"{cleaned}?"
             if _looks_like_answer(question):
                 continue
+            if _looks_like_filler_fragment(question):
+                continue
             if len(question) < min_length or len(question) > max_length:
                 continue
             if _looks_like_noise(question):
@@ -168,7 +179,7 @@ def _looks_like_noise(value: str) -> bool:
 
 
 def _looks_like_question_without_mark(value: str) -> bool:
-    lowered = normalize_whitespace(value).lower()
+    lowered = _normalize_intent_text(value)
     if not lowered:
         return False
     if QUESTION_LIKE_RE.match(lowered):
@@ -179,12 +190,30 @@ def _looks_like_question_without_mark(value: str) -> bool:
 
 
 def _looks_like_answer(value: str) -> bool:
-    lowered = normalize_whitespace(value).lower()
+    lowered = _normalize_intent_text(value)
     if not lowered:
         return False
     if QUESTION_LIKE_RE.match(lowered):
         return False
     return ANSWER_LIKE_RE.match(lowered) is not None
+
+
+def _looks_like_filler_fragment(value: str) -> bool:
+    normalized = _normalize_intent_text(value)
+    if not normalized or QUESTION_LIKE_RE.match(normalized):
+        return False
+
+    tokens = _tokenize_question(normalized)
+    if len(tokens) < 4:
+        return False
+
+    filler_count = sum(1 for token in tokens if FILLER_TOKEN_RE.match(token))
+    content_count = len(tokens) - filler_count
+    if content_count <= 0:
+        return True
+
+    filler_ratio = filler_count / len(tokens)
+    return filler_ratio >= 0.45 and content_count <= 3
 
 
 def _deduplicate_preserving_order(values: list[str]) -> list[str]:
@@ -207,6 +236,12 @@ def _deduplicate_preserving_order(values: list[str]) -> list[str]:
 
 def _canonicalize_question(value: str) -> str:
     normalized = CANONICAL_WHITESPACE_RE.sub(" ", value.lower()).strip()
+    return normalized.strip(" .,!;:-?")
+
+
+def _normalize_intent_text(value: str) -> str:
+    normalized = normalize_whitespace(value).lower()
+    normalized = LEADING_FILLER_RE.sub("", normalized)
     return normalized.strip(" .,!;:-?")
 
 
