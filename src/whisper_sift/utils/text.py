@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 
 
 WHITESPACE_RE = re.compile(r"[ \t]+")
@@ -15,6 +16,8 @@ QUESTION_LIKE_RE = re.compile(
     r"что|как|почему|зачем|когда|где|кто|сколько|какой|какая|какие|какое|каким|какую|"
     r"чем|можете|можешь|можно|есть ли|был ли|были ли|"
     r"расскажите|расскажи|подскажите|объясните|верно ли|правильно ли|"
+    r"я правильно понимаю|я верно понимаю|если я правильно понимаю|"
+    r"правильно понимаю|верно понимаю|"
     r"what|how|why|when|where|who|which|can you|could you|would you|"
     r"do you|did you|have you|is there|are there|tell me"
     r")\b",
@@ -23,11 +26,15 @@ QUESTION_LIKE_RE = re.compile(
 ANSWER_LIKE_RE = re.compile(
     r"^(?:"
     r"да|нет|ага|ну|смотрите|слушайте|хорошо|конечно|скорее|получается|"
-    r"я|мы|это|было|есть|наверное|в целом|actually|well|yes|no|i|we|it"
+    r"наверное|в целом|на самом деле|"
+    r"я|мы|мне|нам|у нас|в нашей команде|в компании|на проекте|на последнем проекте|"
+    r"на прошлом проекте|обычно я|обычно мы|"
+    r"actually|well|yes|no|i|we|our team|in our team|on the last project"
     r")\b",
     re.IGNORECASE,
 )
 CANONICAL_WHITESPACE_RE = re.compile(r"\s+")
+QUESTION_TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]+")
 KNOWN_INTERVIEWER_LABELS = (
     "interviewer",
     "интервьюер",
@@ -129,6 +136,8 @@ def _extract_questions_from_text(
                 continue
 
             question = cleaned if cleaned.endswith("?") else f"{cleaned}?"
+            if _looks_like_answer(question):
+                continue
             if len(question) < min_length or len(question) > max_length:
                 continue
             if _looks_like_noise(question):
@@ -162,20 +171,35 @@ def _looks_like_question_without_mark(value: str) -> bool:
     lowered = normalize_whitespace(value).lower()
     if not lowered:
         return False
+    if QUESTION_LIKE_RE.match(lowered):
+        return True
     if ANSWER_LIKE_RE.match(lowered):
         return False
-    return QUESTION_LIKE_RE.match(lowered) is not None
+    return False
+
+
+def _looks_like_answer(value: str) -> bool:
+    lowered = normalize_whitespace(value).lower()
+    if not lowered:
+        return False
+    if QUESTION_LIKE_RE.match(lowered):
+        return False
+    return ANSWER_LIKE_RE.match(lowered) is not None
 
 
 def _deduplicate_preserving_order(values: list[str]) -> list[str]:
-    seen: set[str] = set()
+    seen_exact: set[str] = set()
+    seen_canonical: list[str] = []
     result: list[str] = []
 
     for value in values:
         canonical = _canonicalize_question(value)
-        if canonical in seen:
+        if canonical in seen_exact:
             continue
-        seen.add(canonical)
+        if any(_questions_are_similar(canonical, existing) for existing in seen_canonical):
+            continue
+        seen_exact.add(canonical)
+        seen_canonical.append(canonical)
         result.append(value)
 
     return result
@@ -184,6 +208,40 @@ def _deduplicate_preserving_order(values: list[str]) -> list[str]:
 def _canonicalize_question(value: str) -> str:
     normalized = CANONICAL_WHITESPACE_RE.sub(" ", value.lower()).strip()
     return normalized.strip(" .,!;:-?")
+
+
+def _questions_are_similar(left: str, right: str) -> bool:
+    if left == right:
+        return True
+    if not left or not right:
+        return False
+
+    similarity = SequenceMatcher(None, left, right).ratio()
+    if similarity >= 0.92:
+        return True
+
+    left_tokens = set(_tokenize_question(left))
+    right_tokens = set(_tokenize_question(right))
+    if not left_tokens or not right_tokens:
+        return False
+
+    shared = left_tokens & right_tokens
+    if not shared:
+        return False
+
+    token_overlap = len(shared) / max(len(left_tokens), len(right_tokens))
+    token_coverage = len(shared) / min(len(left_tokens), len(right_tokens))
+
+    if similarity >= 0.84 and token_overlap >= 0.75:
+        return True
+    if token_coverage >= 0.9 and abs(len(left_tokens) - len(right_tokens)) <= 1:
+        return True
+
+    return False
+
+
+def _tokenize_question(value: str) -> list[str]:
+    return QUESTION_TOKEN_RE.findall(value.lower())
 
 
 def _extract_speaker_turns(

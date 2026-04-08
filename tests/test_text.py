@@ -82,6 +82,59 @@ class TextUtilityTests(unittest.TestCase):
             questions,
         )
 
+    def test_extract_question_candidates_accepts_est_li_question_without_mark(self) -> None:
+        transcript = (
+            "Есть ли у вас опыт работы с Kafka\n"
+            "Да, у меня был такой опыт.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Есть ли у вас опыт работы с Kafka?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_answer_like_phrase_with_question_mark(self) -> None:
+        transcript = (
+            "Я работал над платежным модулем?\n"
+            "Какие технологии вы использовали на последнем проекте?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Какие технологии вы использовали на последнем проекте?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_keeps_question_like_phrase_starting_with_ya(self) -> None:
+        transcript = (
+            "Я правильно понимаю, что у вас был опыт работы с Kafka\n"
+            "Да, был.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Я правильно понимаю, что у вас был опыт работы с Kafka?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_fuzzy_deduplicates_similar_questions(self) -> None:
+        transcript = (
+            "Какие технологии вы использовали на последнем проекте?\n"
+            "Какие технологии использовали на последнем проекте?\n"
+            "Какие технологии вы использовали на последнем проекте ?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Какие технологии вы использовали на последнем проекте?"],
+            questions,
+        )
+
     def test_extract_question_candidates_uses_detected_interviewer_label(self) -> None:
         transcript = (
             "Интервьюер: Расскажите о вашем опыте работы\n"
