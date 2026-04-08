@@ -25,3 +25,4 @@ class QuestionExtractionOptions:
     deduplicate: bool = True
     min_length: int = 10
     max_length: int = 240
+    interviewer_labels: tuple[str, ...] = ()

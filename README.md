@@ -17,6 +17,7 @@ CLI-инструмент для расшифровки интервью чере
 - Поддержка нескольких файлов за один запуск
 - Извлечение вопросов интервьюеров из `.txt`-расшифровок
 - Полный пайплайн: расшифровка и сразу сбор вопросов
+- Speaker-aware извлечение для speaker-labeled или diarized transcript-файлов
 - Диагностическая команда `doctor`
 - Автоматическая установка runtime-зависимостей для транскрибации
 - Автоматический выбор устройства `auto/cpu/cuda/mps`
@@ -59,6 +60,12 @@ python transcribe_whisper.py transcribe interview_part1.mkv interview_part2.mkv 
 python transcribe_whisper.py extract-questions results\interview_part1.txt results\interview_part2.txt --output-dir questions
 ```
 
+Если transcript уже содержит speaker labels, можно явно указать интервьюера:
+
+```powershell
+python transcribe_whisper.py extract-questions diarized.txt --interviewer-label SPEAKER_00
+```
+
 Полный пайплайн:
 
 ```powershell
@@ -66,6 +73,8 @@ python transcribe_whisper.py pipeline interview_part1.mkv interview_part2.mkv --
 ```
 
 Если в `pipeline` не указать `txt` в `--formats`, приложение автоматически добавит его, потому что извлечение вопросов требует текстовую расшифровку.
+
+Если `.txt`-расшифровка после пайплайна уже содержит speaker labels, можно так же передать `--interviewer-label` и извлекать вопросы только из нужного спикера.
 
 ## Параметры транскрибации
 

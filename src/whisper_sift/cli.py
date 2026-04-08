@@ -76,6 +76,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="Не удалять дубликаты вопросов.",
     )
     pipeline_parser.add_argument(
+        "--interviewer-label",
+        action="append",
+        default=[],
+        help=(
+            "Явная speaker label интервьюера для speaker-labeled transcript-файлов. "
+            "Можно указать несколько раз."
+        ),
+    )
+    pipeline_parser.add_argument(
         "--min-length",
         type=int,
         default=10,
@@ -142,6 +151,15 @@ def _add_question_arguments(parser: argparse.ArgumentParser) -> None:
         help="Не удалять дубликаты вопросов.",
     )
     parser.add_argument(
+        "--interviewer-label",
+        action="append",
+        default=[],
+        help=(
+            "Явная speaker label интервьюера, например 'Интервьюер', "
+            "'Interviewer' или 'SPEAKER_00'. Можно указать несколько раз."
+        ),
+    )
+    parser.add_argument(
         "--min-length",
         type=int,
         default=10,
@@ -196,6 +214,7 @@ def _handle_extract_questions(args: argparse.Namespace) -> int:
         deduplicate=not args.no_deduplicate,
         min_length=args.min_length,
         max_length=args.max_length,
+        interviewer_labels=tuple(args.interviewer_label),
     )
     extract_questions_from_files(options)
     return EXIT_SUCCESS
@@ -236,6 +255,7 @@ def _handle_pipeline(args: argparse.Namespace) -> int:
         deduplicate=not args.no_deduplicate,
         min_length=args.min_length,
         max_length=args.max_length,
+        interviewer_labels=tuple(args.interviewer_label),
     )
     extract_questions_from_files(question_options)
     return EXIT_SUCCESS

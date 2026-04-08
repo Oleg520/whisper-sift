@@ -69,6 +69,58 @@ class TextUtilityTests(unittest.TestCase):
             questions,
         )
 
+    def test_extract_question_candidates_accepts_question_like_phrase_without_mark(self) -> None:
+        transcript = (
+            "Расскажите, пожалуйста, про ваш последний проект\n"
+            "Я работал над платежным модулем.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Расскажите, пожалуйста, про ваш последний проект?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_uses_detected_interviewer_label(self) -> None:
+        transcript = (
+            "Интервьюер: Расскажите о вашем опыте работы\n"
+            "Кандидат: Я работаю в backend уже пять лет.\n"
+            "Интервьюер: Какие технологии вы использовали на последнем проекте?\n"
+            "Кандидат: Java и Spring.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Расскажите о вашем опыте работы?",
+                "Какие технологии вы использовали на последнем проекте?",
+            ],
+            questions,
+        )
+
+    def test_extract_question_candidates_supports_explicit_speaker_label(self) -> None:
+        transcript = (
+            "SPEAKER_00: Расскажите о вашем опыте работы\n"
+            "SPEAKER_01: Я работаю в backend уже пять лет.\n"
+            "SPEAKER_00: Какие технологии вы использовали на последнем проекте?\n"
+            "SPEAKER_01: Java и Spring.\n"
+        )
+
+        questions = extract_question_candidates(
+            transcript,
+            interviewer_labels=("SPEAKER_00",),
+        )
+
+        self.assertEqual(
+            [
+                "Расскажите о вашем опыте работы?",
+                "Какие технологии вы использовали на последнем проекте?",
+            ],
+            questions,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
