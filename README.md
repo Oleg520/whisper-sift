@@ -1,84 +1,126 @@
 # Whisper Sift
 
-Небольшое CLI-приложение для двух задач:
+CLI-инструмент для расшифровки интервью через Whisper и извлечения вопросов интервьюеров из готовых transcript-файлов.
 
-1. Расшифровка аудио и видеофайлов через Whisper.
-2. Выделение вопросов интервьюеров из готовых `.txt`-расшифровок.
+Проект состоит из двух частей:
 
-Приложение собрано как обычный Python-проект с пакетами, а для удобства умеет автоматически подтягивать runtime-зависимости для транскрибации, если их еще нет в окружении.
-
-## Возможности
-
-- Расшифровка локальных медиафайлов в `.txt` и `.srt`
-- Поддержка нескольких файлов за один запуск
-- Автоматическая подготовка `ffmpeg` через `imageio-ffmpeg`
-- Автоматическая установка зависимостей для Whisper при первом запуске
-- Извлечение вопросов из `.txt`-расшифровок в отдельные файлы
-- Пайплайн "расшифровать + сразу собрать вопросы"
-- Обратная совместимость со старым запуском через `transcribe_whisper.py`
+- Python-приложение с основным пайплайном транскрибации и обработки текста
+- Java CLI-клиент, который использует текущий Python runtime для транскрибации и свою Java-логику для извлечения вопросов
 
 План развития проекта: [ROADMAP.md](./ROADMAP.md)  
 Трекер задач: [BACKLOG.md](./BACKLOG.md)
 
-## Структура проекта
+## Возможности
 
-```text
-whisper-sift/
-├─ pyproject.toml
-├─ README.md
-├─ clients/
-│  └─ java-cli/
-├─ transcribe_whisper.py
-└─ src/
-   └─ whisper_sift/
-      ├─ __main__.py
-      ├─ cli.py
-      ├─ config.py
-      ├─ paths.py
-      ├─ infrastructure/
-      │  └─ ffmpeg.py
-      ├─ runtime/
-      │  └─ dependencies.py
-      ├─ services/
-      │  ├─ questions.py
-      │  └─ transcription.py
-      └─ utils/
-         └─ text.py
-```
+- Расшифровка локальных аудио- и видеофайлов через Whisper
+- Сохранение результатов в `.txt` и `.srt`
+- Поддержка нескольких файлов за один запуск
+- Извлечение вопросов интервьюеров из `.txt`-расшифровок
+- Полный пайплайн: расшифровка и сразу сбор вопросов
+- Диагностическая команда `doctor`
+- Автоматическая установка runtime-зависимостей для транскрибации
+- Автоматический выбор устройства `auto/cpu/cuda/mps`
+- Кроссплатформенная подготовка `ffmpeg` с приоритетом системного бинарника
 
 ## Требования
 
 - Python 3.11+
 - Windows / Linux / macOS
-- Доступ в интернет при первом запуске транскрибации, если пакеты еще не установлены
+- Доступ в интернет при первом запуске транскрибации, если зависимости еще не установлены
 - Для Java CLI: Java 21+ и доступный `python` в `PATH` либо явный `--python`
 
 ## Быстрый старт
 
-### Вариант 1. Без предварительной установки проекта
-
-Можно запускать сразу через корневой скрипт:
+Без предварительной установки:
 
 ```powershell
-python transcribe_whisper.py transcribe interview_part1.mkv interview_part2.mkv
+python transcribe_whisper.py transcribe interview.mkv
 ```
 
-Если пакетов для транскрибации не будет, приложение само попробует установить:
-
-- `torch`
-- `openai-whisper`
-- `imageio-ffmpeg`
-
-### Вариант 2. Как обычный Python-проект
+Как обычный Python-проект:
 
 ```powershell
 python -m pip install -e .
 whisper-sift --help
+whisper-sift doctor
 ```
 
-### Вариант 3. Java CLI через Maven
+## Основные команды
 
-В репозитории также есть Java-версия CLI в [clients/java-cli](./clients/java-cli), которая использует текущий Python/Whisper runtime для транскрибации и свою Java-логику для извлечения вопросов.
+Расшифровка файлов:
+
+```powershell
+python transcribe_whisper.py transcribe interview_part1.mkv interview_part2.mkv --model small --language ru --output-dir results
+```
+
+Извлечение вопросов из готовых расшифровок:
+
+```powershell
+python transcribe_whisper.py extract-questions results\interview_part1.txt results\interview_part2.txt --output-dir questions
+```
+
+Полный пайплайн:
+
+```powershell
+python transcribe_whisper.py pipeline interview_part1.mkv interview_part2.mkv --model small --language ru --output-dir results --questions-dir questions
+```
+
+Если в `pipeline` не указать `txt` в `--formats`, приложение автоматически добавит его, потому что извлечение вопросов требует текстовую расшифровку.
+
+## Параметры транскрибации
+
+- `--model` — модель Whisper, например `tiny`, `base`, `small`, `medium`, `large`
+- `--language` — код языка, например `ru`; можно указать `auto`
+- `--device` — `auto`, `cpu`, `cuda`, `mps`
+- `--output-dir` — папка для результатов транскрибации
+- `--formats` — выходные форматы, по умолчанию `txt srt`
+
+По устройству приложение работает так:
+
+- `auto` выбирает `cuda`, если доступна NVIDIA GPU
+- если `cuda` недоступна, используется `cpu`
+- при работе на `cuda` автоматически включается `fp16`
+- если явно указать недоступное устройство, CLI мягко откатится на `cpu`
+
+## Диагностика
+
+Проверить окружение, зависимости, `ffmpeg`, Python и доступность `cuda/mps`:
+
+```powershell
+python transcribe_whisper.py doctor
+```
+
+Если нужно, можно сразу попробовать установить отсутствующие runtime-зависимости:
+
+```powershell
+python transcribe_whisper.py doctor --install-missing
+```
+
+Тот же запуск через установленный CLI:
+
+```powershell
+whisper-sift doctor
+```
+
+## Автоустановка зависимостей
+
+Для команд `transcribe` и `pipeline` приложение проверяет наличие runtime-зависимостей. Если чего-то не хватает, запускается:
+
+```powershell
+python -m pip install torch openai-whisper imageio-ffmpeg
+```
+
+Если системный `ffmpeg` уже доступен через `PATH`, `imageio-ffmpeg` не является обязательным для bootstrap-проверки.
+
+## FFMPEG
+
+Сначала приложение пытается использовать системный `ffmpeg`, если он уже доступен в `PATH`.
+
+Если системного бинарника нет, используется `imageio-ffmpeg`, а подготовленный алиас сохраняется в `.tools/ffmpeg/ffmpeg(.exe)` для стабильного запуска Whisper на Windows, Linux и macOS.
+
+## Java CLI
+
+Java-клиент находится в [clients/java-cli](./clients/java-cli).
 
 Сборка:
 
@@ -100,121 +142,36 @@ mvn test
 java -jar target/whisper-sift-java-cli.jar --help
 ```
 
+Пример запуска транскрибации:
+
+```powershell
+java -jar clients/java-cli/target/whisper-sift-java-cli.jar transcribe interview.mkv --model small --device auto
+```
+
 При необходимости можно явно указать Python и корень проекта:
 
 ```powershell
 java -jar target/whisper-sift-java-cli.jar transcribe interview.mkv --python py --project-root ..\..
 ```
 
-## Команды
+## Тесты
 
-### 1. Расшифровка файлов
-
-```powershell
-python transcribe_whisper.py transcribe interview_part1.mkv interview_part2.mkv --model small --language ru --output-dir .
-```
-
-Параметры:
-
-- `--model` - модель Whisper, по умолчанию `small`
-- `--language` - язык расшифровки, по умолчанию `ru`; можно указать `auto`
-- `--device` - устройство `auto/cpu/cuda/mps`, по умолчанию `auto`
-- `--output-dir` - куда сохранять результаты
-- `--formats` - какие форматы сохранить, по умолчанию `txt srt`
-
-По устройству приложение работает так:
-
-- `auto` - автоматически выберет `cuda`, если доступна NVIDIA GPU
-- если GPU недоступна, будет использован `cpu`
-- при работе на `cuda` автоматически включается `fp16` для более быстрой инференции
-- если явно указать `--device cuda`, но CUDA недоступна, приложение мягко откатится на `cpu`
-
-### 2. Извлечение вопросов из готовых расшифровок
+Python-тесты:
 
 ```powershell
-python transcribe_whisper.py extract-questions interview_part1.txt interview_part2.txt
+python -m unittest discover -s tests -v
 ```
 
-По умолчанию рядом с исходным transcript-файлом будет создан файл:
+## Как устроен проект
 
-- `interview_part1_questions.txt`
-- `interview_part2_questions.txt`
+- `src/whisper_sift` — основное Python-приложение и CLI
+- `tests` — Python-тесты
+- `transcribe_whisper.py` — launcher для прямого запуска без установки пакета
+- `clients/java-cli` — Java-клиент внутри того же репозитория
 
-Дополнительные параметры:
+## Что дальше
 
-- `--output-dir` - отдельная папка для файлов с вопросами
-- `--suffix` - суффикс имени файла, по умолчанию `_questions.txt`
-- `--min-length` - минимальная длина вопроса
-- `--max-length` - максимальная длина вопроса
-- `--no-deduplicate` - не удалять дубликаты вопросов
+Следующие приоритетные шаги описаны в:
 
-Важно: выделение вопросов работает эвристически, так как в исходной расшифровке нет speaker labels. Поэтому результат удобен как черновик, но в сложных интервью может потребовать ручной проверки.
-
-### 3. Полный пайплайн
-
-Сначала расшифровать файлы, затем автоматически извлечь вопросы из получившихся `.txt`:
-
-```powershell
-python transcribe_whisper.py pipeline interview_part1.mkv interview_part2.mkv --model small --language ru --output-dir . --questions-dir .
-```
-
-## Обратная совместимость
-
-Старый короткий запуск тоже работает. Если не указывать подкоманду, приложение считает, что это `transcribe`:
-
-```powershell
-python transcribe_whisper.py interview_part1.mkv interview_part2.mkv
-```
-
-## Примеры
-
-Расшифровать один файл:
-
-```powershell
-python transcribe_whisper.py transcribe interview.mkv --model base --language ru
-```
-
-Принудительно использовать GPU:
-
-```powershell
-python transcribe_whisper.py transcribe interview.mkv --model small --device cuda
-```
-
-Собрать вопросы в отдельную директорию:
-
-```powershell
-python transcribe_whisper.py extract-questions interview_part1.txt interview_part2.txt --output-dir questions
-```
-
-Запустить через модуль:
-
-```powershell
-python -m whisper_sift --help
-```
-
-Пример Java CLI:
-
-```powershell
-java -jar clients/java-cli/target/whisper-sift-java-cli.jar transcribe interview.mkv --model small --device auto
-```
-
-## Как это работает
-
-### Автоустановка зависимостей
-
-Для команд `transcribe` и `pipeline` приложение проверяет наличие runtime-зависимостей. Если чего-то не хватает, запускается:
-
-```powershell
-python -m pip install torch openai-whisper imageio-ffmpeg
-```
-
-### FFMPEG
-
-`ffmpeg` берется из пакета `imageio-ffmpeg`, затем копируется в `.tools/ffmpeg/ffmpeg.exe`, чтобы Whisper мог стабильно найти бинарник в Windows.
-
-## Что можно улучшить дальше
-
-- Добавить speaker diarization, чтобы точнее понимать, кто задавал вопрос
-- Добавить тесты на эвристики извлечения вопросов
-- Добавить экспорт в `.json`
-- Поддержать отдельный конфиг-файл для запуска пайплайна
+- [BACKLOG.md](./BACKLOG.md)
+- [ROADMAP.md](./ROADMAP.md)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -8,7 +9,14 @@ from typing import Sequence
 from whisper_sift.config import QuestionExtractionOptions, TranscriptionOptions
 
 
-COMMANDS = {"transcribe", "extract-questions", "pipeline"}
+EXIT_SUCCESS = 0
+EXIT_RUNTIME_ERROR = 1
+EXIT_USAGE_ERROR = 2
+EXIT_FILE_NOT_FOUND = 3
+EXIT_DEPENDENCY_ERROR = 4
+EXIT_INTERRUPTED = 130
+
+COMMANDS = {"transcribe", "extract-questions", "pipeline", "doctor"}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -34,6 +42,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_question_arguments(questions_parser)
     questions_parser.set_defaults(handler=_handle_extract_questions)
+
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Проверить окружение и готовность транскрибации",
+    )
+    doctor_parser.add_argument(
+        "--install-missing",
+        action="store_true",
+        help="Попробовать установить отсутствующие runtime-зависимости перед повторной проверкой.",
+    )
+    doctor_parser.set_defaults(handler=_handle_doctor)
 
     pipeline_parser = subparsers.add_parser(
         "pipeline",
@@ -154,16 +173,17 @@ def _handle_transcribe(args: argparse.Namespace) -> int:
     ensure_transcription_dependencies()
     from whisper_sift.services.transcription import transcribe_files
 
+    normalized_formats = _normalize_output_formats(args.formats)
     options = TranscriptionOptions(
         files=args.files,
         output_dir=args.output_dir.resolve(),
         model=args.model,
         language=None if args.language.lower() == "auto" else args.language,
         device=args.device,
-        formats=tuple(args.formats),
+        formats=normalized_formats,
     )
     transcribe_files(options)
-    return 0
+    return EXIT_SUCCESS
 
 
 def _handle_extract_questions(args: argparse.Namespace) -> int:
@@ -178,7 +198,7 @@ def _handle_extract_questions(args: argparse.Namespace) -> int:
         max_length=args.max_length,
     )
     extract_questions_from_files(options)
-    return 0
+    return EXIT_SUCCESS
 
 
 def _handle_pipeline(args: argparse.Namespace) -> int:
@@ -190,6 +210,13 @@ def _handle_pipeline(args: argparse.Namespace) -> int:
 
     transcript_dir = args.output_dir.resolve()
     question_dir = args.questions_dir.resolve() if args.questions_dir else transcript_dir
+    normalized_formats, txt_added = _normalize_pipeline_formats(args.formats)
+
+    if txt_added:
+        print(
+            "[pipeline] Questions require txt transcripts. "
+            "Added 'txt' to the requested output formats."
+        )
 
     transcription_options = TranscriptionOptions(
         files=args.files,
@@ -197,7 +224,7 @@ def _handle_pipeline(args: argparse.Namespace) -> int:
         model=args.model,
         language=None if args.language.lower() == "auto" else args.language,
         device=args.device,
-        formats=tuple(args.formats),
+        formats=normalized_formats,
     )
     generated_files = transcribe_files(transcription_options)
 
@@ -211,7 +238,41 @@ def _handle_pipeline(args: argparse.Namespace) -> int:
         max_length=args.max_length,
     )
     extract_questions_from_files(question_options)
-    return 0
+    return EXIT_SUCCESS
+
+
+def _handle_doctor(args: argparse.Namespace) -> int:
+    from whisper_sift.runtime.doctor import collect_doctor_report, print_doctor_report
+
+    report = collect_doctor_report(install_missing=args.install_missing)
+    print_doctor_report(report)
+    return EXIT_SUCCESS if report.is_ready else EXIT_RUNTIME_ERROR
+
+
+def _normalize_output_formats(formats: Sequence[str]) -> tuple[str, ...]:
+    normalized_formats: list[str] = []
+    seen: set[str] = set()
+
+    for output_format in formats:
+        normalized = output_format.strip().lower()
+        if not normalized or normalized in seen:
+            continue
+        normalized_formats.append(normalized)
+        seen.add(normalized)
+
+    if not normalized_formats:
+        raise RuntimeError("At least one output format is required.")
+
+    return tuple(normalized_formats)
+
+
+def _normalize_pipeline_formats(formats: Sequence[str]) -> tuple[tuple[str, ...], bool]:
+    normalized_formats = list(_normalize_output_formats(formats))
+    if "txt" in normalized_formats:
+        return tuple(normalized_formats), False
+
+    normalized_formats.append("txt")
+    return tuple(normalized_formats), True
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -219,11 +280,47 @@ def main(argv: Sequence[str] | None = None) -> int:
     normalized_argv = _normalize_argv(sys.argv[1:] if argv is None else argv)
     if not normalized_argv:
         parser.print_help()
-        return 1
+        return EXIT_USAGE_ERROR
 
-    args = parser.parse_args(normalized_argv)
+    try:
+        args = parser.parse_args(normalized_argv)
+    except SystemExit as exc:
+        return int(exc.code)
+
     handler = getattr(args, "handler", None)
     if handler is None:
         parser.print_help()
-        return 1
-    return handler(args)
+        return EXIT_USAGE_ERROR
+
+    try:
+        return handler(args)
+    except KeyboardInterrupt:
+        print("[error] Operation cancelled by user.", file=sys.stderr)
+        return EXIT_INTERRUPTED
+    except FileNotFoundError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return EXIT_FILE_NOT_FOUND
+    except ModuleNotFoundError as exc:
+        print(f"[error] Missing Python module: {exc.name}", file=sys.stderr)
+        return EXIT_DEPENDENCY_ERROR
+    except subprocess.CalledProcessError as exc:
+        command = _format_command(exc.cmd)
+        print(
+            f"[error] External command failed with exit code {exc.returncode}: {command}",
+            file=sys.stderr,
+        )
+        return EXIT_DEPENDENCY_ERROR
+    except RuntimeError as exc:
+        print(f"[error] {exc}", file=sys.stderr)
+        return EXIT_RUNTIME_ERROR
+    except Exception as exc:
+        print(f"[error] Unexpected failure: {exc}", file=sys.stderr)
+        return EXIT_RUNTIME_ERROR
+
+
+def _format_command(command: Sequence[str] | str | None) -> str:
+    if command is None:
+        return "<unknown>"
+    if isinstance(command, str):
+        return command
+    return " ".join(str(part) for part in command)
