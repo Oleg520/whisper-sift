@@ -86,6 +86,48 @@ class CliIntegrationTests(unittest.TestCase):
             self.assertIn('"question_count": 2', json_path.read_text(encoding="utf-8"))
             self.assertIn("[questions]", result.stdout)
 
+    def test_launcher_extract_questions_smoke_from_srt(self) -> None:
+        transcript = (
+            "1\n"
+            "00:00:00,000 --> 00:00:02,000\n"
+            "Можешь рассказать\n\n"
+            "2\n"
+            "00:00:02,000 --> 00:00:05,000\n"
+            "про Spring и Spring Boot?\n\n"
+            "3\n"
+            "00:00:05,000 --> 00:00:06,000\n"
+            "Да, конечно.\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            transcript_path = workspace / "interview.srt"
+            output_dir = workspace / "questions"
+            transcript_path.write_text(transcript, encoding="utf-8")
+
+            result = self._run_cli(
+                str(LAUNCHER),
+                "extract-questions",
+                str(transcript_path),
+                "--output-dir",
+                str(output_dir),
+                "--json",
+            )
+
+            self.assertEqual(0, result.returncode, msg=result.stderr or result.stdout)
+            output_path = output_dir / "interview_questions.txt"
+            json_path = output_dir / "interview_questions.json"
+            self.assertTrue(output_path.exists())
+            self.assertTrue(json_path.exists())
+            self.assertEqual(
+                "Можешь рассказать про Spring и Spring Boot?",
+                output_path.read_text(encoding="utf-8").strip(),
+            )
+            json_text = json_path.read_text(encoding="utf-8")
+            self.assertIn('"start_time": "00:00:00,000"', json_text)
+            self.assertIn('"end_time": "00:00:05,000"', json_text)
+            self.assertIn("[questions]", result.stdout)
+
     def test_module_pipeline_smoke_with_fixture_backend(self) -> None:
         transcript = (
             "Интервьюер: Расскажите про ваш последний проект\n"

@@ -102,7 +102,7 @@ class ApplicationTests(unittest.TestCase):
         run_transcribe_mock.assert_called_once()
         run_extract_questions_mock.assert_called_once()
         extraction_request = run_extract_questions_mock.call_args.args[0]
-        self.assertEqual([Path("results/interview.txt")], extraction_request.options.files)
+        self.assertEqual([Path("results/interview.srt")], extraction_request.options.files)
         self.assertEqual(Path("questions"), extraction_request.options.output_dir)
         self.assertTrue(extraction_request.options.write_json)
         self.assertEqual(("SPEAKER_00",), extraction_request.options.interviewer_labels)

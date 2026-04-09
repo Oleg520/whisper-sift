@@ -34,12 +34,16 @@ class TranscriptSlice:
     text: str
     speaker_label: str | None = None
     normalized_speaker_label: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
             "text": self.text,
             "speaker_label": self.speaker_label,
             "normalized_speaker_label": self.normalized_speaker_label,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
         }
 
 
@@ -63,5 +67,6 @@ class TranscriptView:
             "selected_interviewer_labels": list(self.selected_interviewer_labels),
             "speaker_turn_count": len(self.speaker_turns),
             "candidate_slice_count": len(self.candidate_slices),
+            "candidate_slices": [candidate.to_dict() for candidate in self.candidate_slices],
             "speaker_turns": [turn.to_dict() for turn in self.speaker_turns],
         }

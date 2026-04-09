@@ -46,9 +46,7 @@ def run_pipeline(request: PipelineRequest) -> PipelineResult:
             reporter=request.reporter,
         )
     )
-    transcript_files = [
-        path for path in transcription_result.generated_files if path.suffix.lower() == ".txt"
-    ]
+    transcript_files = _select_question_sources(transcription_result.generated_files)
     question_options = QuestionExtractionOptions(
         files=transcript_files,
         output_dir=request.questions_output_dir,
@@ -70,3 +68,34 @@ def run_pipeline(request: PipelineRequest) -> PipelineResult:
         generated_question_files=questions_result.generated_files,
         generated_question_json_files=questions_result.generated_json_files,
     )
+
+
+def _select_question_sources(generated_files: tuple[Path, ...]) -> list[Path]:
+    selected_by_stem: dict[str, Path] = {}
+    ordered_stems: list[str] = []
+
+    for path in generated_files:
+        suffix = path.suffix.lower()
+        if suffix not in {".txt", ".srt"}:
+            continue
+
+        stem = path.stem
+        if stem not in selected_by_stem:
+            ordered_stems.append(stem)
+            selected_by_stem[stem] = path
+            continue
+
+        if _question_source_priority(suffix) > _question_source_priority(
+            selected_by_stem[stem].suffix.lower()
+        ):
+            selected_by_stem[stem] = path
+
+    return [selected_by_stem[stem] for stem in ordered_stems]
+
+
+def _question_source_priority(suffix: str) -> int:
+    if suffix == ".srt":
+        return 2
+    if suffix == ".txt":
+        return 1
+    return 0

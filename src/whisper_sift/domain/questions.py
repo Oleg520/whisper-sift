@@ -12,6 +12,8 @@ class QuestionCandidate:
     explicit_question: bool
     speaker_label: str | None = None
     normalized_speaker_label: str | None = None
+    start_time: str | None = None
+    end_time: str | None = None
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -20,6 +22,8 @@ class QuestionCandidate:
             "explicit_question": self.explicit_question,
             "speaker_label": self.speaker_label,
             "normalized_speaker_label": self.normalized_speaker_label,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
         }
 
 

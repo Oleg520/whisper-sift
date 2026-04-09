@@ -54,7 +54,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     questions_parser = subparsers.add_parser(
         "extract-questions",
-        help="Извлечь вопросы из .txt-расшифровок",
+        help="Извлечь вопросы из transcript-файлов (.txt, .srt)",
     )
     _add_question_arguments(questions_parser)
     questions_parser.set_defaults(handler=_handle_extract_questions)
@@ -158,7 +158,12 @@ def _add_transcription_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_question_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("files", nargs="+", type=Path, help="TXT-файлы с расшифровками.")
+    parser.add_argument(
+        "files",
+        nargs="+",
+        type=Path,
+        help="Transcript-файлы с расшифровками (.txt, .srt).",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,

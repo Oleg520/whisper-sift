@@ -2,6 +2,7 @@ __pycache__/
 *.py[cod]
 
 .tools/
+.analysis/
 *.egg-info/
 
 .venv/

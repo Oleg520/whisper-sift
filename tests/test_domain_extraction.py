@@ -70,6 +70,50 @@ class DomainExtractionTests(unittest.TestCase):
         self.assertIn("transcript", payload)
         self.assertIn("questions", payload)
 
+    def test_extract_questions_keeps_raw_source_text_alongside_normalized_output(self) -> None:
+        transcript = "Кстати, поджаве, вы-то получается, в основном, в 17-е, да, работал?\n"
+
+        result = extract_questions(transcript)
+
+        self.assertEqual(
+            "По Java вы в основном с 17-й версией работали?",
+            result.questions[0].text,
+        )
+        self.assertEqual(
+            "Кстати, поджаве, вы-то получается, в основном, в 17-е, да, работал",
+            result.questions[0].source_text,
+        )
+
+    def test_extract_questions_does_not_treat_dash_inside_words_as_speaker_split(self) -> None:
+        transcript = (
+            "1\n"
+            "00:00:00,000 --> 00:00:03,000\n"
+            "А вообще лист сет Q-мэп, что это такое? Это интерфейс или класс?\n\n"
+            "2\n"
+            "00:00:03,000 --> 00:00:05,000\n"
+            "Это интерфейс.\n"
+        )
+
+        result = extract_questions(transcript, source_name="sample.srt")
+
+        self.assertFalse(result.transcript.has_speaker_structure)
+        self.assertTrue(any("что это такое" in text.lower() for text in result.question_texts))
+
+    def test_extract_questions_does_not_treat_question_phrase_as_speaker_label(self) -> None:
+        transcript = (
+            "1\n"
+            "00:00:00,000 --> 00:00:03,000\n"
+            "И еще один вопрос. Приходился ли когда-нибудь смотреть Java дамп и thread dump?\n\n"
+            "2\n"
+            "00:00:03,000 --> 00:00:06,000\n"
+            "Нет, такого опыта не было.\n"
+        )
+
+        result = extract_questions(transcript, source_name="sample.srt")
+
+        self.assertFalse(result.transcript.has_speaker_structure)
+        self.assertTrue(any("thread dump" in text.lower() for text in result.question_texts))
+
 
 if __name__ == "__main__":
     unittest.main()

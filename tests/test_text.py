@@ -108,6 +108,21 @@ class TextUtilityTests(unittest.TestCase):
             questions,
         )
 
+    def test_extract_question_candidates_rejects_answer_like_sentences_without_question_mark(self) -> None:
+        transcript = (
+            "Можно, соответственно, поднимать инстанции по отдельности, если нагрузка у нас неравномерная по разным сервисам\n"
+            "Когда у нас намного больше чтений, чем записи, можно отдельно масштабировать чтение\n"
+            "Как сказать, абстракция создает какую-то базу, которую мы используем\n"
+            "Можешь рассказать, пожалуйста, про ваш последний проект\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Можешь рассказать, пожалуйста, про ваш последний проект?"],
+            questions,
+        )
+
     def test_extract_question_candidates_filters_answer_like_phrase_with_question_mark(self) -> None:
         transcript = (
             "Я работал над платежным модулем?\n"
@@ -169,7 +184,7 @@ class TextUtilityTests(unittest.TestCase):
         questions = extract_question_candidates(transcript)
 
         self.assertEqual(
-            ["Так, а может, ты знаешь, какой размер сообщения в Кавке по умолчанию?"],
+            ["А может, ты знаешь, какой размер сообщения в Кавке по умолчанию?"],
             questions,
         )
 
@@ -193,6 +208,12 @@ class TextUtilityTests(unittest.TestCase):
             "Что у нас еще там есть?\n"
             "А какие еще эти?\n"
             "Не трогаем пока паттерные микросервисы?\n"
+            "Так, видишь, да?\n"
+            "Можешь, пожалуйста?\n"
+            "Что-то еще добавить нужно?\n"
+            "Для чего еще?\n"
+            "Для чего использовать?\n"
+            "Что хотелось сказать?\n"
             "Какие группы паттерных проектирований ты знаешь?\n"
         )
 
@@ -206,6 +227,7 @@ class TextUtilityTests(unittest.TestCase):
     def test_extract_question_candidates_filters_answer_like_explanation_with_question_mark(self) -> None:
         transcript = (
             "То есть адаптер, он как бы берет один интерфейс и адаптирует его к другому, условно, да?\n"
+            "Обычно делается вот в тех случаях, когда запросов много, да?\n"
             "А чем декоратор отличается от адаптера?\n"
         )
 
@@ -213,6 +235,22 @@ class TextUtilityTests(unittest.TestCase):
 
         self.assertEqual(
             ["А чем декоратор отличается от адаптера?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_keeps_contextual_followup_with_previous_subject(self) -> None:
+        transcript = (
+            "Можешь рассказать про устройство памяти Java?\n"
+            "Что содержится в ней?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Можешь рассказать про устройство памяти Java?",
+                "Что содержится в ней?",
+            ],
             questions,
         )
 
@@ -231,6 +269,108 @@ class TextUtilityTests(unittest.TestCase):
             questions,
         )
 
+    def test_extract_question_candidates_filters_organizational_and_interface_prompts(self) -> None:
+        transcript = (
+            "Мы на ты или на вы общаться будем?\n"
+            "Когда ты указываешь, что она в Питерском офисе, а не в Минске?\n"
+            "Можешь посмотреть в чатик?\n"
+            "Можно вкладку закрыть?\n"
+            "Расскажите, пожалуйста, про ваш последний проект\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Расскажите, пожалуйста, про ваш последний проект?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_explanatory_answer_like_prompts(self) -> None:
+        transcript = (
+            "Обычно используется hashCode для определения индекса бакетов, да?\n"
+            "Если говорить про память, можно разделить ее на хип и стек, да?\n"
+            "Чем hashCode отличается от equals?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Чем hashCode отличается от equals?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_meta_prompts(self) -> None:
+        transcript = (
+            "А у вас, ты задаёшь вопрос, потому что у вас второй используете?\n"
+            "Это так, просто к слову?\n"
+            "Кстати, под Java, вы в основном в 17-й работали?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["По Java вы в основном с 17-й версией работали?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_truncated_technical_fragments(self) -> None:
+        transcript = (
+            "А как сделать так, чтобы вот сообщения, которые, ну, не успешно\n"
+            "где не стоит, но, если часто вставка редко запись, индекса, они же, по-моему, каждый раз пере\n"
+            "Может ли таблица быть без первичного ключа?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Может ли таблица быть без первичного ключа?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_normalizes_dirty_asr_questions(self) -> None:
+        transcript = (
+            "У вас получается несколько дай микросервисов у вашей команды в разработке?\n"
+            "Кстати, поджаве, вы-то получается, в основном, в 17-е, да, работал?\n"
+            "Кстати, вот какой, например, нравится подход, больше функциональное, например, программирование, в каком вот стиле обычно пишешь?\n"
+            "Вот, ну, а про Metaspace знаешь, который раньше пермгеном был?\n"
+            "Можешь вообще рассказать про Spring, что, зачем нужен, вот, и чем отличается, там, от Spring Boot?\n"
+            "Ну, всё-таки, можно ли обрабатывать error?\n"
+            "Можешь рассказать вообще про у жизни цикл бина, как он создается, как его найти, как использовать?\n"
+            "Вот ты, кстати, упомянул, да, прототайп, может, получается, побольше сказать, про сколпу бинов, вот ты один из них назвал, а с другими знаком?\n"
+            "Можешь рассказать чем, например, Unic отличается от Праймер K?\n"
+            "А использовали это, может быть, на предыдущем проекте, или в целом, опыт с аконными функциями, было?\n"
+            "Вот, касательно спрингана, вот, и а ОП работал с АОП?\n"
+            "Вот, зачем они нужны?\n"
+            "К осадьему, вот, бас данных, так понимаю, получается, с пасгрессом работали, ну, на предыдущем проекте, а с какими-то другими басами данными был, например, опыт?\n"
+            "А, можешь рассказать, для чего индексы вообще нужны в таблице БОЗ-Данных?\n"
+            "Так, кстати, вот я вспомнил, по индексам, вот еще все-таки спрашиваю, какие вот типы индексов приходилось использовать?\n"
+            "селективности, да, насколько полезен будет индекс, как именно будет сканироваться таблица?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Сколько микросервисов у вашей команды в разработке?",
+                "По Java вы в основном с 17-й версией работали?",
+                "Какой подход вам больше нравится: функциональное программирование или что-то другое, и в каком стиле обычно пишете?",
+                "А про Metaspace знаешь? Это то, что раньше называлось PermGen?",
+                "Можешь рассказать про Spring: зачем он нужен и чем отличается от Spring Boot?",
+                "Можно ли обрабатывать Error?",
+                "Можешь рассказать про жизненный цикл бина: как он создаётся, как его найти и как использовать?",
+                "Ты упомянул prototype. Можешь рассказать про scope бинов и какие ещё scope тебе знакомы?",
+                "Чем UNIQUE отличается от Primary Key?",
+                "Был ли опыт с оконными функциями?",
+                "С AOP в Spring работал?",
+                "Зачем нужен AOP?",
+                "Кроме Postgres, был ли опыт работы с другими базами данных?",
+                "Для чего индексы нужны в базе данных?",
+                "Какие типы индексов приходилось использовать?",
+                "Насколько полезен будет индекс с точки зрения селективности, и как именно будет сканироваться таблица?",
+            ],
+            questions,
+        )
+
     def test_extract_question_candidates_fuzzy_deduplicates_similar_questions(self) -> None:
         transcript = (
             "Какие технологии вы использовали на последнем проекте?\n"
@@ -242,6 +382,21 @@ class TextUtilityTests(unittest.TestCase):
 
         self.assertEqual(
             ["Какие технологии вы использовали на последнем проекте?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_topic_bridges(self) -> None:
+        transcript = (
+            "Так, что я еще не упомянул?\n"
+            "А можно пойти дальше тогда?\n"
+            "Так, вот как раз пора к исключениям вернуться?\n"
+            "Можешь рассказать про иерархию исключений?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Можешь рассказать про иерархию исключений?"],
             questions,
         )
 
@@ -313,6 +468,155 @@ class TextUtilityTests(unittest.TestCase):
                 transcript,
                 interviewer_labels=("SPEAKER_42",),
             )
+
+    def test_extract_question_candidates_extracts_from_srt_segments(self) -> None:
+        transcript = (
+            "1\n"
+            "00:00:00,000 --> 00:00:02,000\n"
+            "Можешь рассказать\n\n"
+            "2\n"
+            "00:00:02,000 --> 00:00:05,000\n"
+            "про Spring и Spring Boot\n\n"
+            "3\n"
+            "00:00:05,000 --> 00:00:07,000\n"
+            "Да, конечно.\n"
+        )
+
+        questions = extract_question_candidates(
+            transcript,
+            source_name="interview.srt",
+        )
+
+        self.assertEqual(
+            ["Можешь рассказать про Spring и Spring Boot?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_supports_srt_with_explicit_speaker_label(self) -> None:
+        transcript = (
+            "1\n"
+            "00:00:00,000 --> 00:00:03,000\n"
+            "SPEAKER_00: Расскажите про ваш последний проект\n\n"
+            "2\n"
+            "00:00:03,000 --> 00:00:05,000\n"
+            "SPEAKER_01: Я работал над платежным сервисом.\n\n"
+            "3\n"
+            "00:00:05,000 --> 00:00:08,000\n"
+            "SPEAKER_00: Какие технологии вы использовали?\n"
+        )
+
+        questions = extract_question_candidates(
+            transcript,
+            source_name="interview.srt",
+            interviewer_labels=("SPEAKER_00",),
+        )
+
+        self.assertEqual(
+            [
+                "Расскажите про ваш последний проект?",
+                "Какие технологии вы использовали?",
+            ],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_smalltalk_wrapup_and_answer_leaks(self) -> None:
+        transcript = (
+            "Ну что ты такой, что ты от себя чиста?\n"
+            "Вот как пример, это подключение к BDS-ке?\n"
+            "Как бы, в принципе, нельзя сказать конкретно, какую проблему они решают?\n"
+            "У меня в целом такая часть, она закончена, дальше вопросы такие, а остатки?\n"
+            "Почему современные framework, в основном, выбирают непроверяемые исключения?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Почему современные фреймворки и библиотеки чаще выбирают непроверяемые исключения?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_normalizes_noisy_collection_and_map_questions(self) -> None:
+        transcript = (
+            "Что вообще такого коллекция на P?\n"
+            "А вообще лист сет Q-мэп, что это такое?\n"
+            "А в хэш-мапу мы можем положить элемент с ключом ну?\n"
+            "Так что там unique check?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Что такое Collection API?",
+                "List, Set, Queue и Map — что это такое?",
+                "Можно ли положить в HashMap элемент с ключом null?",
+                "Что такое UNIQUE constraint?",
+            ],
+            questions,
+        )
+
+    def test_extract_question_candidates_normalizes_noisy_spring_and_sql_questions(self) -> None:
+        transcript = (
+            "Что такое сервизация, десервизация, для чего нужен serial version of uit?\n"
+            "А что такое dispatcher-serivallet в архитектуре Springer?\n"
+            "Что такое ORM, GP and HyperNate?\n"
+            "А почему рекомендуют сбегать в Force Push?\n"
+            "Если у тебя есть очень медленный скель запрос, как его анализировать на ревнирной акцентрести?\n"
+            "Приходился ли когда-нибудь смотреть тжава дамп и трет дамп?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Что такое сериализация и десериализация, и для чего нужен serialVersionUID?",
+                "Что такое DispatcherServlet в архитектуре Spring?",
+                "Что такое ORM, JPA и Hibernate?",
+                "Почему не рекомендуют делать force push?",
+                "Если у тебя есть очень медленный SQL-запрос, как ты будешь его анализировать?",
+                "Приходилось ли когда-нибудь смотреть Java dump и thread dump?",
+            ],
+            questions,
+        )
+
+    def test_extract_question_candidates_normalizes_contextual_noisy_followups(self) -> None:
+        transcript = (
+            "Что такое сервизация, десервизация, для чего нужен serial version of uit?\n"
+            "А для чего нужен транси?\n"
+            "Можешь ли ты просто немножко теории, что такое вообще спринк, для чего его создали, что там у него под комботом?\n"
+            "А что у него под комботом, за технологией?\n"
+            "Может ли Кавка обеспечить порядок сообщений?\n"
+            "Как бы творили комит по этому сообщению?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Что такое сериализация и десериализация, и для чего нужен serialVersionUID?",
+                "Для чего нужен transient?",
+                "Что такое Spring, для чего его создали и что у него под капотом?",
+                "А что у Spring под капотом, какая там технология?",
+                "Может ли Кавка обеспечить порядок сообщений?",
+                "Когда бы ты коммитил offset по сообщению в Kafka?",
+            ],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_remaining_garbled_followups(self) -> None:
+        transcript = (
+            "Может быть, тут еще у них должна быть?\n"
+            "Как сейчас эту еллю в вару использовала ли на работе?\n"
+            "Можешь рассказать про уровни изоляции транзакций?\n"
+            "Может, про какой-нибудь один любой над головой?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Можешь рассказать про уровни изоляции транзакций?"],
+            questions,
+        )
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ CLI-инструмент для расшифровки интервью чере
 - Расшифровка локальных аудио- и видеофайлов через Whisper
 - Сохранение результатов в `.txt` и `.srt`
 - Поддержка нескольких файлов за один запуск
-- Извлечение вопросов интервьюеров из `.txt`-расшифровок
+- Извлечение вопросов интервьюеров из transcript-файлов `.txt` и `.srt`
 - Полный пайплайн: расшифровка и сразу сбор вопросов
 - Speaker-aware извлечение для speaker-labeled или diarized transcript-файлов
 - Диагностическая команда `doctor`
@@ -48,7 +48,7 @@ python transcribe_whisper.py transcribe interview_part1.mkv interview_part2.mkv 
 Извлечение вопросов из готовых расшифровок:
 
 ```powershell
-python transcribe_whisper.py extract-questions results\interview_part1.txt results\interview_part2.txt --output-dir questions
+python transcribe_whisper.py extract-questions results\interview_part1.txt results\interview_part2.srt --output-dir questions
 ```
 
 Если нужен структурированный экспорт для автоматизации, можно добавить JSON sidecar:
@@ -73,7 +73,9 @@ python transcribe_whisper.py pipeline interview_part1.mkv interview_part2.mkv --
 
 Если `.txt`-расшифровка после пайплайна уже содержит speaker labels, можно так же передать `--interviewer-label` и извлекать вопросы только из нужного спикера.
 
-Для `extract-questions` и `pipeline` опция `--json` сохраняет дополнительный `.json` рядом с файлом вопросов.
+Для `extract-questions` и `pipeline` опция `--json` сохраняет дополнительный `.json` рядом с файлом вопросов. Если источником служит `.srt`, JSON также содержит таймкоды `start_time` / `end_time` для найденных вопросов.
+
+Если в пайплайне доступны и `.txt`, и `.srt`, приложение автоматически предпочитает `.srt` как более точный источник для извлечения вопросов.
 
 ## Параметры транскрибации
 
