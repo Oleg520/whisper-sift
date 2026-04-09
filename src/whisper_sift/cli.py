@@ -6,6 +6,18 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from whisper_sift.cli_handlers import (
+    handle_doctor as _command_handle_doctor,
+    handle_evaluate as _command_handle_evaluate,
+    handle_extract_questions as _command_handle_extract_questions,
+    handle_pipeline as _command_handle_pipeline,
+    handle_transcribe as _command_handle_transcribe,
+)
+from whisper_sift.cli_handlers.shared import (
+    default_golden_set_path as _shared_default_golden_set_path,
+    normalize_output_formats as _shared_normalize_output_formats,
+    normalize_pipeline_formats as _shared_normalize_pipeline_formats,
+)
 from whisper_sift.config import (
     AUTO_DETECT_LANGUAGE,
     DEFAULT_MAX_QUESTION_LENGTH,
@@ -17,11 +29,7 @@ from whisper_sift.config import (
     DEFAULT_TRANSCRIPTION_LANGUAGE,
     DEFAULT_TRANSCRIPTION_MODEL,
     DEFAULT_WRITE_QUESTION_JSON,
-    QuestionExtractionOptions,
-    TranscriptionOptions,
-    normalize_transcription_language,
 )
-from whisper_sift.runtime.reporting import ConsoleReporter
 
 EXIT_SUCCESS = 0
 EXIT_RUNTIME_ERROR = 1
@@ -277,176 +285,55 @@ def _looks_like_transcription_target(value: str) -> bool:
 
 
 def _handle_transcribe(args: argparse.Namespace) -> int:
-    from whisper_sift.application.provision_runtime import (
-        ProvisionTranscriptionRuntimeRequest,
-        run_provision_transcription_runtime,
-    )
-    from whisper_sift.application.transcribe import TranscribeRequest, run_transcribe
-
-    reporter = ConsoleReporter()
-    run_provision_transcription_runtime(ProvisionTranscriptionRuntimeRequest())
-    normalized_formats = _normalize_output_formats(args.formats)
-    options = TranscriptionOptions(
-        files=args.files,
-        output_dir=args.output_dir.resolve(),
-        model=args.model,
-        language=normalize_transcription_language(args.language),
-        device=args.device,
-        formats=normalized_formats,
-    )
-    run_transcribe(TranscribeRequest(options=options, reporter=reporter))
-    return EXIT_SUCCESS
+    return _cli_handle_transcribe(args)
 
 
 def _handle_extract_questions(args: argparse.Namespace) -> int:
-    from whisper_sift.application.extract_questions import (
-        ExtractQuestionsRequest,
-        run_extract_questions,
-    )
-
-    reporter = ConsoleReporter()
-    options = QuestionExtractionOptions(
-        files=args.files,
-        output_dir=args.output_dir.resolve() if args.output_dir else None,
-        suffix=args.suffix,
-        write_json=args.json,
-        deduplicate=not args.no_deduplicate,
-        min_length=args.min_length,
-        max_length=args.max_length,
-        interviewer_labels=tuple(args.interviewer_label),
-    )
-    run_extract_questions(
-        ExtractQuestionsRequest(options=options, reporter=reporter)
-    )
-    return EXIT_SUCCESS
+    return _cli_handle_extract_questions(args)
 
 
 def _handle_pipeline(args: argparse.Namespace) -> int:
-    from whisper_sift.application.provision_runtime import (
-        ProvisionTranscriptionRuntimeRequest,
-        run_provision_transcription_runtime,
-    )
-    from whisper_sift.application.pipeline import PipelineRequest, run_pipeline
-
-    reporter = ConsoleReporter()
-    run_provision_transcription_runtime(ProvisionTranscriptionRuntimeRequest())
-    transcript_dir = args.output_dir.resolve()
-    question_dir = args.questions_dir.resolve() if args.questions_dir else transcript_dir
-    normalized_formats, txt_added = _normalize_pipeline_formats(args.formats)
-
-    if txt_added:
-        print(
-            "[pipeline] Questions require txt transcripts. "
-            "Added 'txt' to the requested output formats."
-        )
-
-    transcription_options = TranscriptionOptions(
-        files=args.files,
-        output_dir=transcript_dir,
-        model=args.model,
-        language=normalize_transcription_language(args.language),
-        device=args.device,
-        formats=normalized_formats,
-    )
-    run_pipeline(
-        PipelineRequest(
-            transcription_options=transcription_options,
-            questions_output_dir=question_dir,
-            suffix=args.suffix,
-            write_json=args.json,
-            deduplicate=not args.no_deduplicate,
-            min_length=args.min_length,
-            max_length=args.max_length,
-            interviewer_labels=tuple(args.interviewer_label),
-            reporter=reporter,
-        )
-    )
-    return EXIT_SUCCESS
+    return _cli_handle_pipeline(args)
 
 
 def _handle_doctor(args: argparse.Namespace) -> int:
-    from whisper_sift.application.doctor import DoctorRequest, run_doctor
-    from whisper_sift.runtime.doctor import print_doctor_report
-
-    report = run_doctor(DoctorRequest(install_missing=args.install_missing)).report
-    print_doctor_report(report)
-    return EXIT_SUCCESS if report.is_ready else EXIT_RUNTIME_ERROR
+    return _cli_handle_doctor(args)
 
 
 def _handle_evaluate(args: argparse.Namespace) -> int:
-    from whisper_sift.application.evaluate import EvaluateRequest, run_evaluate
-
-    reporter = ConsoleReporter()
-    golden_set_path = args.golden_set.expanduser()
-    report_json_path = (
-        args.report_json.expanduser()
-        if args.report_json
-        else golden_set_path.with_name("latest_report.json")
-    )
-    if args.diff_json and not (args.baseline_report or args.update_baseline):
-        raise RuntimeError("--diff-json requires --baseline-report or --update-baseline.")
-
-    baseline_report_path: Path | None
-    if args.baseline_report or args.update_baseline:
-        baseline_report_path = (
-            args.baseline_report.expanduser()
-            if args.baseline_report
-            else golden_set_path.with_name("baseline_report.json")
-        )
-    else:
-        baseline_report_path = None
-
-    if baseline_report_path is not None:
-        diff_json_path = (
-            args.diff_json.expanduser()
-            if args.diff_json
-            else golden_set_path.with_name("latest_diff.json")
-        )
-    else:
-        diff_json_path = None
-
-    result = run_evaluate(
-        EvaluateRequest(
-            golden_set_path=golden_set_path,
-            report_json_path=report_json_path,
-            baseline_report_path=baseline_report_path,
-            diff_json_path=diff_json_path,
-            update_baseline=args.update_baseline,
-            selected_cases=tuple(args.case),
-            reporter=reporter,
-        )
-    )
-    return EXIT_SUCCESS if result.report.is_passing else EXIT_RUNTIME_ERROR
+    return _cli_handle_evaluate(args)
 
 
 def _normalize_output_formats(formats: Sequence[str]) -> tuple[str, ...]:
-    normalized_formats: list[str] = []
-    seen: set[str] = set()
-
-    for output_format in formats:
-        normalized = output_format.strip().lower()
-        if not normalized or normalized in seen:
-            continue
-        normalized_formats.append(normalized)
-        seen.add(normalized)
-
-    if not normalized_formats:
-        raise RuntimeError("At least one output format is required.")
-
-    return tuple(normalized_formats)
+    return _shared_normalize_output_formats(formats)
 
 
 def _normalize_pipeline_formats(formats: Sequence[str]) -> tuple[tuple[str, ...], bool]:
-    normalized_formats = list(_normalize_output_formats(formats))
-    if "txt" in normalized_formats:
-        return tuple(normalized_formats), False
-
-    normalized_formats.append("txt")
-    return tuple(normalized_formats), True
+    return _shared_normalize_pipeline_formats(formats)
 
 
 def _default_golden_set_path() -> Path:
-    return Path.cwd() / ".analysis" / "eval" / "golden_set.json"
+    return _shared_default_golden_set_path()
+
+
+def _cli_handle_transcribe(args: argparse.Namespace) -> int:
+    return EXIT_SUCCESS if _command_handle_transcribe(args) == 0 else EXIT_RUNTIME_ERROR
+
+
+def _cli_handle_extract_questions(args: argparse.Namespace) -> int:
+    return EXIT_SUCCESS if _command_handle_extract_questions(args) == 0 else EXIT_RUNTIME_ERROR
+
+
+def _cli_handle_pipeline(args: argparse.Namespace) -> int:
+    return EXIT_SUCCESS if _command_handle_pipeline(args) == 0 else EXIT_RUNTIME_ERROR
+
+
+def _cli_handle_doctor(args: argparse.Namespace) -> int:
+    return EXIT_SUCCESS if _command_handle_doctor(args) == 0 else EXIT_RUNTIME_ERROR
+
+
+def _cli_handle_evaluate(args: argparse.Namespace) -> int:
+    return EXIT_SUCCESS if _command_handle_evaluate(args) == 0 else EXIT_RUNTIME_ERROR
 
 
 def main(argv: Sequence[str] | None = None) -> int:
