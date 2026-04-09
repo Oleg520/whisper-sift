@@ -2,11 +2,6 @@
 
 CLI-инструмент для расшифровки интервью через Whisper и извлечения вопросов интервьюеров из готовых transcript-файлов.
 
-Проект состоит из двух частей:
-
-- Python-приложение с основным пайплайном транскрибации и обработки текста
-- Java CLI-клиент, который использует текущий Python runtime для транскрибации и свою Java-логику для извлечения вопросов
-
 План развития проекта: [ROADMAP.md](./ROADMAP.md)  
 Трекер задач: [BACKLOG.md](./BACKLOG.md)
 
@@ -28,7 +23,6 @@ CLI-инструмент для расшифровки интервью чере
 - Python 3.11+
 - Windows / Linux / macOS
 - Доступ в интернет при первом запуске транскрибации, если зависимости еще не установлены
-- Для Java CLI: Java 21+ и доступный `python` в `PATH` либо явный `--python`
 
 ## Быстрый старт
 
@@ -127,42 +121,6 @@ python -m pip install torch openai-whisper imageio-ffmpeg
 
 Если системного бинарника нет, используется `imageio-ffmpeg`, а подготовленный алиас сохраняется в `.tools/ffmpeg/ffmpeg(.exe)` для стабильного запуска Whisper на Windows, Linux и macOS.
 
-## Java CLI
-
-Java-клиент находится в [clients/java-cli](./clients/java-cli).
-
-Сборка:
-
-```powershell
-cd clients/java-cli
-mvn package
-```
-
-Тесты:
-
-```powershell
-cd clients/java-cli
-mvn test
-```
-
-Запуск:
-
-```powershell
-java -jar target/whisper-sift-java-cli.jar --help
-```
-
-Пример запуска транскрибации:
-
-```powershell
-java -jar clients/java-cli/target/whisper-sift-java-cli.jar transcribe interview.mkv --model small --device auto
-```
-
-При необходимости можно явно указать Python и корень проекта:
-
-```powershell
-java -jar target/whisper-sift-java-cli.jar transcribe interview.mkv --python py --project-root ..\..
-```
-
 ## Тесты
 
 Python-тесты:
@@ -176,7 +134,6 @@ python -m unittest discover -s tests -v
 - `src/whisper_sift` — основное Python-приложение и CLI
 - `tests` — Python-тесты
 - `transcribe_whisper.py` — launcher для прямого запуска без установки пакета
-- `clients/java-cli` — Java-клиент внутри того же репозитория
 
 ## Что дальше
 

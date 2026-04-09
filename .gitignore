@@ -7,16 +7,9 @@ __pycache__/
 .venv/
 venv/
 
-target/
 out/
 
 .idea/
 *.iml
 *.ipr
 *.iws
-
-.classpath
-.project
-.settings/
-
-hs_err_pid*
