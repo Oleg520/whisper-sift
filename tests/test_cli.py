@@ -38,6 +38,7 @@ class CliTests(unittest.TestCase):
         parser = build_parser()
         transcribe_args = parser.parse_args(["transcribe", "sample.mkv"])
         extract_args = parser.parse_args(["extract-questions", "sample.txt"])
+        evaluate_args = parser.parse_args(["evaluate"])
 
         self.assertEqual(DEFAULT_TRANSCRIPTION_MODEL, transcribe_args.model)
         self.assertEqual(DEFAULT_TRANSCRIPTION_LANGUAGE, transcribe_args.language)
@@ -47,6 +48,8 @@ class CliTests(unittest.TestCase):
         self.assertEqual(DEFAULT_WRITE_QUESTION_JSON, extract_args.json)
         self.assertEqual(DEFAULT_MIN_QUESTION_LENGTH, extract_args.min_length)
         self.assertEqual(DEFAULT_MAX_QUESTION_LENGTH, extract_args.max_length)
+        self.assertEqual("golden_set.json", evaluate_args.golden_set.name)
+        self.assertEqual([], evaluate_args.case)
 
     def test_normalize_output_formats_deduplicates_and_lowercases(self) -> None:
         normalized = _normalize_output_formats(["TXT", "srt", "txt", " SRT "])

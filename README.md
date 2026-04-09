@@ -11,6 +11,7 @@ CLI-инструмент для расшифровки интервью чере
 - Полный пайплайн: расшифровка и сразу сбор вопросов
 - Speaker-aware извлечение для speaker-labeled или diarized transcript-файлов
 - Диагностическая команда `doctor`
+- Локальная команда `evaluate` для regression-проверки extraction по golden set
 - Автоматическая установка runtime-зависимостей для транскрибации
 - Автоматический выбор устройства `auto/cpu/cuda/mps`
 - Кроссплатформенная подготовка `ffmpeg` с приоритетом системного бинарника
@@ -76,6 +77,27 @@ python transcribe_whisper.py pipeline interview_part1.mkv interview_part2.mkv --
 Для `extract-questions` и `pipeline` опция `--json` сохраняет дополнительный `.json` рядом с файлом вопросов. Если источником служит `.srt`, JSON также содержит таймкоды `start_time` / `end_time` для найденных вопросов.
 
 Если в пайплайне доступны и `.txt`, и `.srt`, приложение автоматически предпочитает `.srt` как более точный источник для извлечения вопросов.
+
+## Локальная оценка качества
+
+Если хочешь отслеживать качество extraction на реальных интервью, можно завести локальный golden set в `.analysis/eval/golden_set.json` в текущей рабочей папке и запускать:
+
+```powershell
+python transcribe_whisper.py evaluate
+```
+
+По умолчанию команда:
+
+- читает `.analysis/eval/golden_set.json`
+- проверяет обязательные `required_questions`
+- следит, чтобы не появились `forbidden_questions`
+- сохраняет JSON-отчёт в `.analysis/eval/latest_report.json`
+
+Можно указать свои пути и выбрать отдельные кейсы:
+
+```powershell
+python transcribe_whisper.py evaluate --golden-set .analysis/eval/golden_set.json --case interview1 --case gavrilin
+```
 
 ## Параметры транскрибации
 

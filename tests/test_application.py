@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -12,6 +13,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from whisper_sift.application.doctor import DoctorRequest, run_doctor
+from whisper_sift.application.evaluate import EvaluateRequest, run_evaluate
 from whisper_sift.application.extract_questions import (
     ExtractQuestionsRequest,
     run_extract_questions,
@@ -124,6 +126,45 @@ class ApplicationTests(unittest.TestCase):
 
         collect_doctor_report_mock.assert_called_once_with(install_missing=True)
         self.assertIs(sentinel_report, result.report)
+
+    @patch("whisper_sift.application.evaluate.evaluate_golden_set")
+    def test_run_evaluate_wraps_report_and_writes_json(
+        self,
+        evaluate_golden_set_mock,
+    ) -> None:
+        class _FakeReport:
+            is_passing = True
+            cases = ()
+            passed_case_count = 1
+            case_count = 1
+            required_matched = 2
+            required_total = 2
+            forbidden_present = 0
+            forbidden_total = 1
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            golden_set = workspace / "golden_set.json"
+            report_json = workspace / "latest_report.json"
+            golden_set.write_text('{"cases": []}', encoding="utf-8")
+            evaluate_golden_set_mock.return_value = _FakeReport()
+
+            result = run_evaluate(
+                EvaluateRequest(
+                    golden_set_path=golden_set,
+                    report_json_path=report_json,
+                )
+            )
+
+            evaluate_golden_set_mock.assert_called_once_with(
+                golden_set,
+                selected_cases=(),
+            )
+            self.assertEqual(report_json, result.report_json_path)
+            self.assertIn('"ok": true', report_json.read_text(encoding="utf-8").lower())
 
 
 if __name__ == "__main__":

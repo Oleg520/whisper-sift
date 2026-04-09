@@ -214,6 +214,51 @@ class CliIntegrationTests(unittest.TestCase):
             )
             self.assertIn("[questions]", result.stdout)
 
+    def test_launcher_evaluate_smoke(self) -> None:
+        transcript = (
+            "Расскажите про ваш последний проект\n"
+            "Какие технологии вы использовали?\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            transcript_path = workspace / "sample.txt"
+            golden_set_path = workspace / "golden_set.json"
+            report_path = workspace / "latest_report.json"
+            transcript_path.write_text(transcript, encoding="utf-8")
+            golden_set_path.write_text(
+                (
+                    "{\n"
+                    '  "cases": [\n'
+                    "    {\n"
+                    '      "name": "sample",\n'
+                    '      "source": "sample.txt",\n'
+                    '      "required_questions": [\n'
+                    '        "Расскажите про ваш последний проект?",\n'
+                    '        "Какие технологии вы использовали?"\n'
+                    "      ],\n"
+                    '      "forbidden_questions": ["Ну, а что у нас?"]\n'
+                    "    }\n"
+                    "  ]\n"
+                    "}\n"
+                ),
+                encoding="utf-8",
+            )
+
+            result = self._run_cli(
+                str(LAUNCHER),
+                "evaluate",
+                "--golden-set",
+                str(golden_set_path),
+                "--report-json",
+                str(report_path),
+            )
+
+            self.assertEqual(0, result.returncode, msg=result.stderr or result.stdout)
+            self.assertTrue(report_path.exists())
+            self.assertIn('"is_passing": true', report_path.read_text(encoding="utf-8").lower())
+            self.assertIn("[eval] sample: PASS", result.stdout)
+
     def _run_cli(
         self,
         *arguments: str,

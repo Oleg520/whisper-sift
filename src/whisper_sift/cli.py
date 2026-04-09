@@ -23,7 +23,6 @@ from whisper_sift.config import (
 )
 from whisper_sift.runtime.reporting import ConsoleReporter
 
-
 EXIT_SUCCESS = 0
 EXIT_RUNTIME_ERROR = 1
 EXIT_USAGE_ERROR = 2
@@ -31,7 +30,7 @@ EXIT_FILE_NOT_FOUND = 3
 EXIT_DEPENDENCY_ERROR = 4
 EXIT_INTERRUPTED = 130
 
-COMMANDS = {"transcribe", "extract-questions", "pipeline", "doctor"}
+COMMANDS = {"transcribe", "extract-questions", "pipeline", "doctor", "evaluate"}
 DEFAULT_OUTPUT_FORMATS_TEXT = " ".join(DEFAULT_OUTPUT_FORMATS)
 
 
@@ -69,6 +68,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Попробовать установить отсутствующие runtime-зависимости перед повторной проверкой.",
     )
     doctor_parser.set_defaults(handler=_handle_doctor)
+
+    evaluate_parser = subparsers.add_parser(
+        "evaluate",
+        help="Проверить качество extraction по локальному golden set",
+    )
+    evaluate_parser.add_argument(
+        "--golden-set",
+        type=Path,
+        default=_default_golden_set_path(),
+        help="Путь до JSON golden set для локальной оценки качества extraction.",
+    )
+    evaluate_parser.add_argument(
+        "--report-json",
+        type=Path,
+        default=None,
+        help="Куда сохранить JSON-отчёт; по умолчанию рядом с golden set.",
+    )
+    evaluate_parser.add_argument(
+        "--case",
+        action="append",
+        default=[],
+        help="Имя конкретного evaluation-кейса. Можно указать несколько раз.",
+    )
+    evaluate_parser.set_defaults(handler=_handle_evaluate)
 
     pipeline_parser = subparsers.add_parser(
         "pipeline",
@@ -320,6 +343,27 @@ def _handle_doctor(args: argparse.Namespace) -> int:
     return EXIT_SUCCESS if report.is_ready else EXIT_RUNTIME_ERROR
 
 
+def _handle_evaluate(args: argparse.Namespace) -> int:
+    from whisper_sift.application.evaluate import EvaluateRequest, run_evaluate
+
+    reporter = ConsoleReporter()
+    golden_set_path = args.golden_set.expanduser()
+    report_json_path = (
+        args.report_json.expanduser()
+        if args.report_json
+        else golden_set_path.with_name("latest_report.json")
+    )
+    result = run_evaluate(
+        EvaluateRequest(
+            golden_set_path=golden_set_path,
+            report_json_path=report_json_path,
+            selected_cases=tuple(args.case),
+            reporter=reporter,
+        )
+    )
+    return EXIT_SUCCESS if result.report.is_passing else EXIT_RUNTIME_ERROR
+
+
 def _normalize_output_formats(formats: Sequence[str]) -> tuple[str, ...]:
     normalized_formats: list[str] = []
     seen: set[str] = set()
@@ -344,6 +388,10 @@ def _normalize_pipeline_formats(formats: Sequence[str]) -> tuple[tuple[str, ...]
 
     normalized_formats.append("txt")
     return tuple(normalized_formats), True
+
+
+def _default_golden_set_path() -> Path:
+    return Path.cwd() / ".analysis" / "eval" / "golden_set.json"
 
 
 def main(argv: Sequence[str] | None = None) -> int:
