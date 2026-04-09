@@ -69,6 +69,176 @@ class TextUtilityTests(unittest.TestCase):
             questions,
         )
 
+    def test_extract_question_candidates_accepts_question_like_phrase_without_mark(self) -> None:
+        transcript = (
+            "Расскажите, пожалуйста, про ваш последний проект\n"
+            "Я работал над платежным модулем.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Расскажите, пожалуйста, про ваш последний проект?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_accepts_est_li_question_without_mark(self) -> None:
+        transcript = (
+            "Есть ли у вас опыт работы с Kafka\n"
+            "Да, у меня был такой опыт.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Есть ли у вас опыт работы с Kafka?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_accepts_kakoy_question_without_mark(self) -> None:
+        transcript = (
+            "Какой размер сообщения в Kafka по умолчанию\n"
+            "Кажется, около одного мегабайта.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Какой размер сообщения в Kafka по умолчанию?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_answer_like_phrase_with_question_mark(self) -> None:
+        transcript = (
+            "Я работал над платежным модулем?\n"
+            "Какие технологии вы использовали на последнем проекте?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Какие технологии вы использовали на последнем проекте?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_keeps_question_like_phrase_starting_with_ya(self) -> None:
+        transcript = (
+            "Я правильно понимаю, что у вас был опыт работы с Kafka\n"
+            "Да, был.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Я правильно понимаю, что у вас был опыт работы с Kafka?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_does_not_treat_kakoy_to_as_question(self) -> None:
+        transcript = (
+            "какой-то дополнительный на диске.\n"
+            "А вспомнишь, как кластеризованы и не кластеризованы индексы?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["А вспомнишь, как кластеризованы и не кластеризованы индексы?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_filler_heavy_fragment(self) -> None:
+        transcript = (
+            "А, ContekMap, да, наверное, то есть что?\n"
+            "И вот знаешь, что такое проба в куберныце?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["И вот знаешь, что такое проба в куберныце?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_answer_like_guess_with_fillers(self) -> None:
+        transcript = (
+            "А, так, если честно не помню, но могу предположить, что может быть в районе там 2 мегабайт?\n"
+            "Так, а может, ты знаешь, какой размер сообщения в Кавке по умолчанию?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Так, а может, ты знаешь, какой размер сообщения в Кавке по умолчанию?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_answer_like_bilo_phrase(self) -> None:
+        transcript = (
+            "Было тоже самописным, да-да?\n"
+            "А Inbox был?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["А Inbox был?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_fuzzy_deduplicates_similar_questions(self) -> None:
+        transcript = (
+            "Какие технологии вы использовали на последнем проекте?\n"
+            "Какие технологии использовали на последнем проекте?\n"
+            "Какие технологии вы использовали на последнем проекте ?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Какие технологии вы использовали на последнем проекте?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_uses_detected_interviewer_label(self) -> None:
+        transcript = (
+            "Интервьюер: Расскажите о вашем опыте работы\n"
+            "Кандидат: Я работаю в backend уже пять лет.\n"
+            "Интервьюер: Какие технологии вы использовали на последнем проекте?\n"
+            "Кандидат: Java и Spring.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Расскажите о вашем опыте работы?",
+                "Какие технологии вы использовали на последнем проекте?",
+            ],
+            questions,
+        )
+
+    def test_extract_question_candidates_supports_explicit_speaker_label(self) -> None:
+        transcript = (
+            "SPEAKER_00: Расскажите о вашем опыте работы\n"
+            "SPEAKER_01: Я работаю в backend уже пять лет.\n"
+            "SPEAKER_00: Какие технологии вы использовали на последнем проекте?\n"
+            "SPEAKER_01: Java и Spring.\n"
+        )
+
+        questions = extract_question_candidates(
+            transcript,
+            interviewer_labels=("SPEAKER_00",),
+        )
+
+        self.assertEqual(
+            [
+                "Расскажите о вашем опыте работы?",
+                "Какие технологии вы использовали на последнем проекте?",
+            ],
+            questions,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

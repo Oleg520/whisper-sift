@@ -19,6 +19,7 @@ def extract_questions_from_files(options: QuestionExtractionOptions) -> list[Pat
             deduplicate=options.deduplicate,
             min_length=options.min_length,
             max_length=options.max_length,
+            interviewer_labels=options.interviewer_labels,
         )
         output_path = _build_output_path(
             source=resolved_source,
