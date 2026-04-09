@@ -50,12 +50,18 @@ class ApplicationTests(unittest.TestCase):
     @patch("whisper_sift.services.questions.extract_questions_from_files")
     def test_run_extract_questions_returns_result(self, extract_questions_mock) -> None:
         options = QuestionExtractionOptions(files=[Path("interview.txt")])
-        extract_questions_mock.return_value = [Path("interview_questions.txt")]
+        from whisper_sift.services.questions import QuestionOutputArtifacts
+
+        extract_questions_mock.return_value = QuestionOutputArtifacts(
+            text_files=(Path("interview_questions.txt"),),
+            json_files=(Path("interview_questions.json"),),
+        )
 
         result = run_extract_questions(ExtractQuestionsRequest(options=options))
 
         extract_questions_mock.assert_called_once_with(options, reporter=None)
         self.assertEqual((Path("interview_questions.txt"),), result.generated_files)
+        self.assertEqual((Path("interview_questions.json"),), result.generated_json_files)
 
     @patch("whisper_sift.application.pipeline.run_extract_questions")
     @patch("whisper_sift.application.pipeline.run_transcribe")
@@ -76,7 +82,8 @@ class ApplicationTests(unittest.TestCase):
             generated_files=(Path("results/interview.txt"), Path("results/interview.srt"))
         )
         run_extract_questions_mock.return_value = ExtractQuestionsResult(
-            generated_files=(Path("questions/interview_questions.txt"),)
+            generated_files=(Path("questions/interview_questions.txt"),),
+            generated_json_files=(Path("questions/interview_questions.json"),),
         )
 
         result = run_pipeline(
@@ -84,6 +91,7 @@ class ApplicationTests(unittest.TestCase):
                 transcription_options=transcription_options,
                 questions_output_dir=Path("questions"),
                 suffix=DEFAULT_QUESTION_SUFFIX,
+                write_json=True,
                 deduplicate=True,
                 min_length=DEFAULT_MIN_QUESTION_LENGTH,
                 max_length=DEFAULT_MAX_QUESTION_LENGTH,
@@ -96,10 +104,15 @@ class ApplicationTests(unittest.TestCase):
         extraction_request = run_extract_questions_mock.call_args.args[0]
         self.assertEqual([Path("results/interview.txt")], extraction_request.options.files)
         self.assertEqual(Path("questions"), extraction_request.options.output_dir)
+        self.assertTrue(extraction_request.options.write_json)
         self.assertEqual(("SPEAKER_00",), extraction_request.options.interviewer_labels)
         self.assertEqual(
             (Path("questions/interview_questions.txt"),),
             result.generated_question_files,
+        )
+        self.assertEqual(
+            (Path("questions/interview_questions.json"),),
+            result.generated_question_json_files,
         )
 
     @patch("whisper_sift.runtime.doctor.collect_doctor_report")

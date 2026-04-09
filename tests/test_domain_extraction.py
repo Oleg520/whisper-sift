@@ -51,6 +51,25 @@ class DomainExtractionTests(unittest.TestCase):
             result.question_texts,
         )
 
+    def test_extract_questions_can_be_serialized_to_dict(self) -> None:
+        transcript = (
+            "Interviewer: Tell me about your latest project\n"
+            "Candidate: I built internal tooling.\n"
+        )
+
+        result = extract_questions(transcript, source_name="sample.txt")
+        payload = result.to_dict(source_path="/tmp/sample.txt")
+
+        self.assertEqual("sample.txt", payload["source_name"])
+        self.assertEqual("/tmp/sample.txt", payload["source_path"])
+        self.assertEqual(1, payload["question_count"])
+        self.assertEqual(
+            ["Tell me about your latest project?"],
+            payload["question_texts"],
+        )
+        self.assertIn("transcript", payload)
+        self.assertIn("questions", payload)
+
 
 if __name__ == "__main__":
     unittest.main()

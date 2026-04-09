@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +31,19 @@ def write_text_file(path: Path, content: str, *, encoding: str = "utf-8") -> Pat
 def build_question_output_path(source: Path, output_dir: Path | None, suffix: str) -> Path:
     target_dir = output_dir.resolve() if output_dir else source.parent
     return target_dir / f"{source.stem}{suffix}"
+
+
+def build_json_sidecar_path(path: Path) -> Path:
+    return path.with_suffix(".json")
+
+
+def write_json_file(path: Path, content: dict[str, Any]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(content, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return path
 
 
 def write_whisper_outputs(

@@ -51,6 +51,12 @@ python transcribe_whisper.py transcribe interview_part1.mkv interview_part2.mkv 
 python transcribe_whisper.py extract-questions results\interview_part1.txt results\interview_part2.txt --output-dir questions
 ```
 
+Если нужен структурированный экспорт для автоматизации, можно добавить JSON sidecar:
+
+```powershell
+python transcribe_whisper.py extract-questions results\interview_part1.txt --output-dir questions --json
+```
+
 Если transcript уже содержит speaker labels, можно явно указать интервьюера:
 
 ```powershell
@@ -66,6 +72,8 @@ python transcribe_whisper.py pipeline interview_part1.mkv interview_part2.mkv --
 Если в `pipeline` не указать `txt` в `--formats`, приложение автоматически добавит его, потому что извлечение вопросов требует текстовую расшифровку.
 
 Если `.txt`-расшифровка после пайплайна уже содержит speaker labels, можно так же передать `--interviewer-label` и извлекать вопросы только из нужного спикера.
+
+Для `extract-questions` и `pipeline` опция `--json` сохраняет дополнительный `.json` рядом с файлом вопросов.
 
 ## Параметры транскрибации
 

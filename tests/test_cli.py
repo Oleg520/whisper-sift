@@ -29,6 +29,7 @@ from whisper_sift.config import (
     DEFAULT_TRANSCRIPTION_DEVICE,
     DEFAULT_TRANSCRIPTION_LANGUAGE,
     DEFAULT_TRANSCRIPTION_MODEL,
+    DEFAULT_WRITE_QUESTION_JSON,
 )
 
 
@@ -43,6 +44,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(DEFAULT_TRANSCRIPTION_DEVICE, transcribe_args.device)
         self.assertEqual(list(DEFAULT_OUTPUT_FORMATS), transcribe_args.formats)
         self.assertEqual(DEFAULT_QUESTION_SUFFIX, extract_args.suffix)
+        self.assertEqual(DEFAULT_WRITE_QUESTION_JSON, extract_args.json)
         self.assertEqual(DEFAULT_MIN_QUESTION_LENGTH, extract_args.min_length)
         self.assertEqual(DEFAULT_MAX_QUESTION_LENGTH, extract_args.max_length)
 

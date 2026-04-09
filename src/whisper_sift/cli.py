@@ -16,6 +16,7 @@ from whisper_sift.config import (
     DEFAULT_TRANSCRIPTION_DEVICE,
     DEFAULT_TRANSCRIPTION_LANGUAGE,
     DEFAULT_TRANSCRIPTION_MODEL,
+    DEFAULT_WRITE_QUESTION_JSON,
     QuestionExtractionOptions,
     TranscriptionOptions,
     normalize_transcription_language,
@@ -84,6 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--suffix",
         default=DEFAULT_QUESTION_SUFFIX,
         help="Суффикс имени файлов с вопросами.",
+    )
+    pipeline_parser.add_argument(
+        "--json",
+        action="store_true",
+        default=DEFAULT_WRITE_QUESTION_JSON,
+        help="Сохранить дополнительный JSON-файл со структурированными данными по вопросам.",
     )
     pipeline_parser.add_argument(
         "--no-deduplicate",
@@ -162,6 +169,12 @@ def _add_question_arguments(parser: argparse.ArgumentParser) -> None:
         "--suffix",
         default=DEFAULT_QUESTION_SUFFIX,
         help="Суффикс выходного файла.",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        default=DEFAULT_WRITE_QUESTION_JSON,
+        help="Сохранить дополнительный JSON-файл со структурированными данными по вопросам.",
     )
     parser.add_argument(
         "--no-deduplicate",
@@ -243,6 +256,7 @@ def _handle_extract_questions(args: argparse.Namespace) -> int:
         files=args.files,
         output_dir=args.output_dir.resolve() if args.output_dir else None,
         suffix=args.suffix,
+        write_json=args.json,
         deduplicate=not args.no_deduplicate,
         min_length=args.min_length,
         max_length=args.max_length,
@@ -281,6 +295,7 @@ def _handle_pipeline(args: argparse.Namespace) -> int:
             transcription_options=transcription_options,
             questions_output_dir=question_dir,
             suffix=args.suffix,
+            write_json=args.json,
             deduplicate=not args.no_deduplicate,
             min_length=args.min_length,
             max_length=args.max_length,

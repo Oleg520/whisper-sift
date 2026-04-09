@@ -68,11 +68,14 @@ class CliIntegrationTests(unittest.TestCase):
                 str(transcript_path),
                 "--output-dir",
                 str(output_dir),
+                "--json",
             )
 
             self.assertEqual(0, result.returncode, msg=result.stderr or result.stdout)
             output_path = output_dir / "interview_questions.txt"
+            json_path = output_dir / "interview_questions.json"
             self.assertTrue(output_path.exists())
+            self.assertTrue(json_path.exists())
             self.assertEqual(
                 (
                     "Расскажите про ваш последний проект?\n"
@@ -80,6 +83,7 @@ class CliIntegrationTests(unittest.TestCase):
                 ),
                 output_path.read_text(encoding="utf-8").strip(),
             )
+            self.assertIn('"question_count": 2', json_path.read_text(encoding="utf-8"))
             self.assertIn("[questions]", result.stdout)
 
     def test_module_pipeline_smoke_with_fixture_backend(self) -> None:
@@ -107,14 +111,17 @@ class CliIntegrationTests(unittest.TestCase):
                 str(questions_dir),
                 "--formats",
                 "txt",
+                "--json",
                 extra_env={FAKE_TRANSCRIPTION_TEXT_ENV: transcript},
             )
 
             self.assertEqual(0, result.returncode, msg=result.stderr or result.stdout)
             transcript_path = transcript_dir / "interview.txt"
             questions_path = questions_dir / "interview_questions.txt"
+            questions_json_path = questions_dir / "interview_questions.json"
             self.assertTrue(transcript_path.exists())
             self.assertTrue(questions_path.exists())
+            self.assertTrue(questions_json_path.exists())
             self.assertEqual(
                 (
                     "Расскажите про ваш последний проект?\n"
@@ -122,6 +129,7 @@ class CliIntegrationTests(unittest.TestCase):
                 ),
                 questions_path.read_text(encoding="utf-8").strip(),
             )
+            self.assertIn('"question_count": 2', questions_json_path.read_text(encoding="utf-8"))
             self.assertIn("[done]", result.stdout)
             self.assertIn("[questions]", result.stdout)
 

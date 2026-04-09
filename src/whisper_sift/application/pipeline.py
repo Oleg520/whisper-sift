@@ -9,6 +9,7 @@ from whisper_sift.config import (
     DEFAULT_MAX_QUESTION_LENGTH,
     DEFAULT_MIN_QUESTION_LENGTH,
     DEFAULT_QUESTION_SUFFIX,
+    DEFAULT_WRITE_QUESTION_JSON,
     QuestionExtractionOptions,
     TranscriptionOptions,
 )
@@ -23,6 +24,7 @@ class PipelineRequest:
     transcription_options: TranscriptionOptions
     questions_output_dir: Path | None = None
     suffix: str = DEFAULT_QUESTION_SUFFIX
+    write_json: bool = DEFAULT_WRITE_QUESTION_JSON
     deduplicate: bool = DEFAULT_DEDUPLICATE_QUESTIONS
     min_length: int = DEFAULT_MIN_QUESTION_LENGTH
     max_length: int = DEFAULT_MAX_QUESTION_LENGTH
@@ -34,6 +36,7 @@ class PipelineRequest:
 class PipelineResult:
     transcription: TranscribeResult
     generated_question_files: tuple[Path, ...]
+    generated_question_json_files: tuple[Path, ...] = ()
 
 
 def run_pipeline(request: PipelineRequest) -> PipelineResult:
@@ -50,6 +53,7 @@ def run_pipeline(request: PipelineRequest) -> PipelineResult:
         files=transcript_files,
         output_dir=request.questions_output_dir,
         suffix=request.suffix,
+        write_json=request.write_json,
         deduplicate=request.deduplicate,
         min_length=request.min_length,
         max_length=request.max_length,
@@ -64,4 +68,5 @@ def run_pipeline(request: PipelineRequest) -> PipelineResult:
     return PipelineResult(
         transcription=transcription_result,
         generated_question_files=questions_result.generated_files,
+        generated_question_json_files=questions_result.generated_json_files,
     )

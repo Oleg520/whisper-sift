@@ -11,6 +11,7 @@ AUTO_DETECT_LANGUAGE = "auto"
 DEFAULT_TRANSCRIPTION_DEVICE = "auto"
 DEFAULT_OUTPUT_FORMATS = ("txt", "srt")
 DEFAULT_QUESTION_SUFFIX = "_questions.txt"
+DEFAULT_WRITE_QUESTION_JSON = False
 DEFAULT_DEDUPLICATE_QUESTIONS = True
 DEFAULT_MIN_QUESTION_LENGTH = 10
 DEFAULT_MAX_QUESTION_LENGTH = 240
@@ -46,6 +47,7 @@ class QuestionExtractionOptions:
     files: list[Path]
     output_dir: Path | None = None
     suffix: str = DEFAULT_QUESTION_SUFFIX
+    write_json: bool = DEFAULT_WRITE_QUESTION_JSON
     deduplicate: bool = DEFAULT_DEDUPLICATE_QUESTIONS
     min_length: int = DEFAULT_MIN_QUESTION_LENGTH
     max_length: int = DEFAULT_MAX_QUESTION_LENGTH
