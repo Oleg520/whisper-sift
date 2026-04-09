@@ -10,7 +10,6 @@ from whisper_sift.domain.extraction_text import (
 )
 from whisper_sift.domain.questions import QuestionCandidate
 
-
 QUESTION_LIKE_RE = re.compile(
     r"^(?:"
     r"что(?!-)|как(?!-)|почему|зачем|когда(?!-)|где(?!-)|кто(?!-)|сколько|"

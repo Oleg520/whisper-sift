@@ -9,7 +9,6 @@ from dataclasses import dataclass
 from whisper_sift.infrastructure.whisper_backend import is_fake_transcription_enabled
 from whisper_sift.runtime.hardware import probe_nvidia_hardware
 
-
 TORCH_PACKAGE_NAME = "torch"
 TORCH_CPU_INDEX_URL = "https://download.pytorch.org/whl/cpu"
 TORCH_CUDA_INDEX_URL = "https://download.pytorch.org/whl/cu126"

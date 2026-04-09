@@ -9,7 +9,6 @@ from whisper_sift.domain.transcript import (
     TranscriptView,
 )
 
-
 __all__ = [
     "QuestionCandidate",
     "QuestionExtractionResult",

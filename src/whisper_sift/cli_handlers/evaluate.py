@@ -4,7 +4,6 @@ import argparse
 from pathlib import Path
 
 from whisper_sift.application.evaluate import EvaluateRequest, run_evaluate
-from whisper_sift.cli_handlers.shared import default_golden_set_path
 from whisper_sift.config import EvaluationPolicy
 from whisper_sift.runtime.reporting import ConsoleReporter
 

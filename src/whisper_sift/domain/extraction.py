@@ -3,34 +3,45 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+import whisper_sift.domain.question_classifier as _question_classifier
+import whisper_sift.domain.question_normalizer as _question_normalizer
 from whisper_sift.config import (
     DEFAULT_DEDUPLICATE_QUESTIONS,
     DEFAULT_INTERVIEWER_LABELS,
     DEFAULT_MAX_QUESTION_LENGTH,
     DEFAULT_MIN_QUESTION_LENGTH,
 )
-import whisper_sift.domain.question_classifier as _question_classifier
-import whisper_sift.domain.question_normalizer as _question_normalizer
 from whisper_sift.domain.extraction_text import (
     deduplicate_preserving_order as _deduplicate_preserving_order,
+)
+from whisper_sift.domain.extraction_text import (
     normalize_whitespace,
 )
 from whisper_sift.domain.questions import QuestionCandidate, QuestionExtractionResult
-from whisper_sift.domain.srt_segmenter import extract_srt_slices as _extract_srt_slices
 from whisper_sift.domain.speaker_resolution import (
     extract_speaker_turns as _extract_speaker_turns,
+)
+from whisper_sift.domain.speaker_resolution import (
     label_transcript_slices as _label_transcript_slices,
+)
+from whisper_sift.domain.speaker_resolution import (
     normalize_explicit_speaker_labels as _normalize_explicit_speaker_labels,
+)
+from whisper_sift.domain.speaker_resolution import (
     ordered_unique as _ordered_unique,
+)
+from whisper_sift.domain.speaker_resolution import (
     resolve_interviewer_labels as _resolve_interviewer_labels,
+)
+from whisper_sift.domain.speaker_resolution import (
     split_speaker_labeled_text as _split_speaker_labeled_text,
 )
+from whisper_sift.domain.srt_segmenter import extract_srt_slices as _extract_srt_slices
 from whisper_sift.domain.transcript import (
     TranscriptArtifact,
     TranscriptSlice,
     TranscriptView,
 )
-
 
 QUESTION_SPLIT_RE = re.compile(r"(?<=[?.!])\s+|\n+")
 CANDIDATE_QUESTION_INVITE_RE = re.compile(

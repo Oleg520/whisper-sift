@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-
 DEFAULT_OUTPUT_DIR = Path(".")
 DEFAULT_TRANSCRIPTION_MODEL = "small"
 DEFAULT_TRANSCRIPTION_LANGUAGE = "ru"

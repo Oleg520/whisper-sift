@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import re
 
 from whisper_sift.config import (
     DEFAULT_DEDUPLICATE_QUESTIONS,
@@ -11,7 +11,6 @@ from whisper_sift.config import (
     DEFAULT_MIN_QUESTION_LENGTH,
 )
 from whisper_sift.domain.extraction import extract_questions
-
 
 CANONICAL_QUESTION_RE = re.compile(r"\s+")
 

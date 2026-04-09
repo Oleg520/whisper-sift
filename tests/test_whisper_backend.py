@@ -8,7 +8,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
@@ -18,8 +17,8 @@ from whisper_sift.config import FAKE_TRANSCRIPTION_FILE_ENV, FAKE_TRANSCRIPTION_
 from whisper_sift.domain.transcription import TranscriptionDocument
 from whisper_sift.infrastructure.whisper_backend import (
     FixtureWhisperBackend,
-    load_whisper_backend,
     load_fake_transcription_text,
+    load_whisper_backend,
     resolve_backend_device,
 )
 

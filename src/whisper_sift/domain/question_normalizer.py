@@ -5,7 +5,6 @@ import re
 from whisper_sift.domain.extraction_text import normalize_intent_text, normalize_whitespace
 from whisper_sift.domain.questions import QuestionCandidate
 
-
 LEADING_READABILITY_FILLER_RE = re.compile(
     r"^(?:(?:ну|вот|так|кстати|окей)\s*,\s*)+",
     re.IGNORECASE,

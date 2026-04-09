@@ -5,7 +5,6 @@ from collections.abc import Callable
 
 from whisper_sift.domain.transcript import TranscriptSlice
 
-
 SRT_TIMECODE_RE = re.compile(
     r"^(?P<start>\d{2}:\d{2}:\d{2},\d{3})\s+-->\s+"
     r"(?P<end>\d{2}:\d{2}:\d{2},\d{3})(?:\s+.*)?$"

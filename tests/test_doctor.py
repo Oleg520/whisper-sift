@@ -5,19 +5,18 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from whisper_sift.infrastructure.ffmpeg import FfmpegProbe
-from whisper_sift.runtime.hardware import NvidiaHardwareStatus
 from whisper_sift.runtime.doctor import (
     DoctorReport,
     TorchStatus,
     _collect_dependency_statuses,
 )
+from whisper_sift.runtime.hardware import NvidiaHardwareStatus
 
 
 class DoctorTests(unittest.TestCase):

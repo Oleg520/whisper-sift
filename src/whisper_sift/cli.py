@@ -8,14 +8,26 @@ from typing import Sequence
 
 from whisper_sift.cli_handlers import (
     handle_doctor as _command_handle_doctor,
+)
+from whisper_sift.cli_handlers import (
     handle_evaluate as _command_handle_evaluate,
+)
+from whisper_sift.cli_handlers import (
     handle_extract_questions as _command_handle_extract_questions,
+)
+from whisper_sift.cli_handlers import (
     handle_pipeline as _command_handle_pipeline,
+)
+from whisper_sift.cli_handlers import (
     handle_transcribe as _command_handle_transcribe,
 )
 from whisper_sift.cli_handlers.shared import (
     default_golden_set_path as _shared_default_golden_set_path,
+)
+from whisper_sift.cli_handlers.shared import (
     normalize_output_formats as _shared_normalize_output_formats,
+)
+from whisper_sift.cli_handlers.shared import (
     normalize_pipeline_formats as _shared_normalize_pipeline_formats,
 )
 from whisper_sift.config import (

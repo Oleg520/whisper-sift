@@ -6,7 +6,6 @@ from collections import Counter
 from whisper_sift.domain.extraction_text import normalize_whitespace, tokenize_question
 from whisper_sift.domain.transcript import SpeakerTurn, TranscriptSlice
 
-
 GENERIC_SPEAKER_LINE_RE = re.compile(
     r"^\s*(?:\[(?P<bracket>[^\]]{1,40})\]|(?P<plain>[^:\n]{1,40}?))"
     r"(?:\s*:\s*|\s+[-–—]\s+)(?P<body>.*)$"

@@ -209,6 +209,24 @@ Python-тесты, включая unit coverage и CLI smoke tests для `trans
 python -m unittest discover -s tests -v
 ```
 
+## Линтинг
+
+Базовый linting сейчас настроен через `ruff` с фокусом на реальные ошибки и порядок импортов:
+
+```powershell
+python -m pip install ruff
+ruff check src tests
+```
+
+## CI
+
+В репозитории есть GitHub Actions workflow, который на каждый `push` и `pull request` запускает:
+
+- `ruff check src tests`
+- `python -m unittest discover -s tests -v`
+
+Workflow использует лёгкую установку проекта без тяжёлых runtime-зависимостей транскрибации, потому что тесты покрывают основной код через fake backend и mock-based сценарии.
+
 ## Как устроен проект
 
 - `src/whisper_sift` — основное Python-приложение и CLI

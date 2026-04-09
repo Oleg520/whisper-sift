@@ -14,7 +14,6 @@ if str(SRC_DIR) not in sys.path:
 
 from whisper_sift.config import FAKE_TRANSCRIPTION_TEXT_ENV
 
-
 LAUNCHER = PROJECT_ROOT / "transcribe_whisper.py"
 
 

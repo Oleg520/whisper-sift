@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
@@ -110,7 +109,6 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual("small", result.artifacts[0].model_name)
 
     def test_run_transcribe_can_write_summary_json(self) -> None:
-        from whisper_sift.application.transcribe import TranscribeResult
 
         with tempfile.TemporaryDirectory() as temp_dir:
             workspace = Path(temp_dir)

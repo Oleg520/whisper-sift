@@ -5,7 +5,6 @@ from difflib import SequenceMatcher
 
 from whisper_sift.domain.questions import QuestionCandidate
 
-
 WHITESPACE_RE = re.compile(r"[ \t]+")
 CANONICAL_WHITESPACE_RE = re.compile(r"\s+")
 QUESTION_TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]+")
