@@ -15,6 +15,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from whisper_sift.config import FAKE_TRANSCRIPTION_FILE_ENV, FAKE_TRANSCRIPTION_TEXT_ENV
+from whisper_sift.domain.transcription import TranscriptionDocument
 from whisper_sift.infrastructure.whisper_backend import (
     FixtureWhisperBackend,
     load_whisper_backend,
@@ -44,6 +45,10 @@ class WhisperBackendTests(unittest.TestCase):
         self.assertEqual("cpu", backend.resolved_device)
         self.assertFalse(backend.use_fp16)
         self.assertFalse(backend.requires_media_runtime)
+        document = backend.transcribe_file(Path("sample.mkv"), language="ru")
+        self.assertIsInstance(document, TranscriptionDocument)
+        self.assertEqual("Interviewer: Hello there", document.text)
+        self.assertEqual(1, document.segment_count)
 
     def test_resolve_backend_device_falls_back_to_cpu_when_cuda_is_unavailable(self) -> None:
         fake_torch = types.SimpleNamespace(

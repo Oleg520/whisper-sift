@@ -19,9 +19,7 @@ class TranscribeResult:
 
 
 def run_transcribe(request: TranscribeRequest) -> TranscribeResult:
-    from whisper_sift.runtime.dependencies import ensure_transcription_dependencies
     from whisper_sift.services.transcription import transcribe_files
 
-    ensure_transcription_dependencies()
     generated_files = transcribe_files(request.options, reporter=request.reporter)
     return TranscribeResult(generated_files=tuple(generated_files))

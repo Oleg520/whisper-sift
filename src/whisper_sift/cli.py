@@ -277,9 +277,14 @@ def _looks_like_transcription_target(value: str) -> bool:
 
 
 def _handle_transcribe(args: argparse.Namespace) -> int:
+    from whisper_sift.application.provision_runtime import (
+        ProvisionTranscriptionRuntimeRequest,
+        run_provision_transcription_runtime,
+    )
     from whisper_sift.application.transcribe import TranscribeRequest, run_transcribe
 
     reporter = ConsoleReporter()
+    run_provision_transcription_runtime(ProvisionTranscriptionRuntimeRequest())
     normalized_formats = _normalize_output_formats(args.formats)
     options = TranscriptionOptions(
         files=args.files,
@@ -317,9 +322,14 @@ def _handle_extract_questions(args: argparse.Namespace) -> int:
 
 
 def _handle_pipeline(args: argparse.Namespace) -> int:
+    from whisper_sift.application.provision_runtime import (
+        ProvisionTranscriptionRuntimeRequest,
+        run_provision_transcription_runtime,
+    )
     from whisper_sift.application.pipeline import PipelineRequest, run_pipeline
 
     reporter = ConsoleReporter()
+    run_provision_transcription_runtime(ProvisionTranscriptionRuntimeRequest())
     transcript_dir = args.output_dir.resolve()
     question_dir = args.questions_dir.resolve() if args.questions_dir else transcript_dir
     normalized_formats, txt_added = _normalize_pipeline_formats(args.formats)

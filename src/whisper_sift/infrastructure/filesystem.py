@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from whisper_sift.domain.transcription import TranscriptionDocument
+
 
 def ensure_output_dir(path: Path) -> Path:
     resolved = path.resolve()
@@ -48,7 +50,7 @@ def write_json_file(path: Path, content: dict[str, Any]) -> Path:
 
 def write_whisper_outputs(
     *,
-    result: dict[str, Any],
+    result: TranscriptionDocument,
     source: Path,
     output_dir: Path,
     formats: tuple[str, ...],
@@ -71,13 +73,44 @@ def write_whisper_outputs(
             from whisper.utils import get_writer
 
             writer = get_writer(output_format, str(output_dir))
-            writer(result, str(source), writer_options)
+            writer(
+                _build_whisper_writer_payload(result),
+                str(source),
+                writer_options,
+            )
         generated_files.append(output_dir / f"{source.stem}.{output_format}")
 
     return generated_files
 
 
-def _write_txt_output(*, result: dict[str, Any], source: Path, output_dir: Path) -> None:
-    text = str(result.get("text", "")).strip()
+def _write_txt_output(
+    *,
+    result: TranscriptionDocument,
+    source: Path,
+    output_dir: Path,
+) -> None:
+    text = result.text.strip()
     target_path = output_dir / f"{source.stem}.txt"
     target_path.write_text(f"{text}\n" if text else "", encoding="utf-8")
+
+
+def _build_whisper_writer_payload(result: TranscriptionDocument) -> dict[str, Any]:
+    return {
+        "text": result.text,
+        "language": result.language or "und",
+        "segments": [
+            {
+                "id": segment.id,
+                "seek": 0,
+                "start": segment.start,
+                "end": segment.end,
+                "text": segment.text,
+                "tokens": [],
+                "temperature": 0.0,
+                "avg_logprob": 0.0,
+                "compression_ratio": 0.0,
+                "no_speech_prob": 0.0,
+            }
+            for segment in result.segments
+        ],
+    }

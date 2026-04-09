@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -8,8 +7,13 @@ from whisper_sift.domain.evaluation import (
     EvaluationReport,
     EvaluationReportDiff,
     diff_evaluation_reports,
-    evaluate_golden_set,
+    evaluate_cases,
+)
+from whisper_sift.infrastructure.evaluation_store import (
     load_evaluation_report,
+    load_golden_set,
+    write_evaluation_diff,
+    write_evaluation_report,
 )
 from whisper_sift.runtime.reporting import ProgressReporter, report_progress
 
@@ -35,10 +39,12 @@ class EvaluateResult:
 
 
 def run_evaluate(request: EvaluateRequest) -> EvaluateResult:
-    report = evaluate_golden_set(
-        request.golden_set_path.expanduser(),
+    golden_set_path = request.golden_set_path.expanduser()
+    cases = load_golden_set(
+        golden_set_path,
         selected_cases=request.selected_cases,
     )
+    report = evaluate_cases(cases, golden_set_path=golden_set_path)
     for case in report.cases:
         status = "PASS" if case.passed else "FAIL"
         report_progress(
@@ -66,11 +72,7 @@ def run_evaluate(request: EvaluateRequest) -> EvaluateResult:
     )
     diff_json_path = request.diff_json_path.expanduser() if request.diff_json_path else None
     if report_json_path is not None:
-        report_json_path.parent.mkdir(parents=True, exist_ok=True)
-        report_json_path.write_text(
-            json.dumps(report.to_dict(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        write_evaluation_report(report, report_json_path)
         report_progress(
             request.reporter,
             f"[eval] Report written to {report_json_path}",
@@ -92,22 +94,14 @@ def run_evaluate(request: EvaluateRequest) -> EvaluateResult:
             )
             _report_diff(diff, reporter=request.reporter)
             if diff_json_path is not None:
-                diff_json_path.parent.mkdir(parents=True, exist_ok=True)
-                diff_json_path.write_text(
-                    json.dumps(diff.to_dict(), ensure_ascii=False, indent=2),
-                    encoding="utf-8",
-                )
+                write_evaluation_diff(diff, diff_json_path)
                 report_progress(
                     request.reporter,
                     f"[eval] Diff written to {diff_json_path}",
                 )
 
     if request.update_baseline and baseline_report_path is not None:
-        baseline_report_path.parent.mkdir(parents=True, exist_ok=True)
-        baseline_report_path.write_text(
-            json.dumps(report.to_dict(), ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        write_evaluation_report(report, baseline_report_path)
         report_progress(
             request.reporter,
             f"[eval] Baseline updated at {baseline_report_path}",

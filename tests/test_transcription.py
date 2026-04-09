@@ -13,6 +13,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from whisper_sift.config import TranscriptionOptions
+from whisper_sift.domain.transcription import TranscriptionDocument
 from whisper_sift.services.transcription import transcribe_files
 
 
@@ -54,7 +55,7 @@ class TranscriptionTests(unittest.TestCase):
         backend.resolved_device = "cpu"
         backend.use_fp16 = False
         backend.requires_media_runtime = True
-        backend.transcribe_file.return_value = {"text": "hello"}
+        backend.transcribe_file.return_value = TranscriptionDocument(text="hello")
         load_backend_mock.return_value = backend
         ensure_ffmpeg_mock.return_value = Path("/usr/bin/ffmpeg")
 
@@ -77,6 +78,10 @@ class TranscriptionTests(unittest.TestCase):
         ensure_ffmpeg_mock.assert_called_once_with()
         backend.transcribe_file.assert_called_once()
         write_outputs_mock.assert_called_once()
+        self.assertIsInstance(
+            write_outputs_mock.call_args.kwargs["result"],
+            TranscriptionDocument,
+        )
         self.assertEqual([output_dir / "interview.txt"], result)
 
 

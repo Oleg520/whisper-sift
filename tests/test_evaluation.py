@@ -13,7 +13,9 @@ if str(SRC_DIR) not in sys.path:
 
 from whisper_sift.domain.evaluation import (
     diff_evaluation_reports,
-    evaluate_golden_set,
+    evaluate_cases,
+)
+from whisper_sift.infrastructure.evaluation_store import (
     load_evaluation_report,
     load_golden_set,
 )
@@ -84,7 +86,8 @@ class EvaluationTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            report = evaluate_golden_set(manifest_path)
+            cases = load_golden_set(manifest_path)
+            report = evaluate_cases(cases, golden_set_path=manifest_path)
 
             self.assertFalse(report.is_passing)
             self.assertEqual(1, report.failed_case_count)
@@ -121,7 +124,8 @@ class EvaluationTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            report = evaluate_golden_set(manifest_path, selected_cases=("second",))
+            cases = load_golden_set(manifest_path, selected_cases=("second",))
+            report = evaluate_cases(cases, golden_set_path=manifest_path)
 
             self.assertEqual(1, report.case_count)
             self.assertEqual("second", report.cases[0].case.name)

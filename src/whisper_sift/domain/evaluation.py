@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-import json
 import re
 
 from whisper_sift.config import (
@@ -21,6 +20,7 @@ CANONICAL_QUESTION_RE = re.compile(r"\s+")
 class GoldenCase:
     name: str
     source_path: Path
+    transcript_text: str = ""
     required_questions: tuple[str, ...] = ()
     forbidden_questions: tuple[str, ...] = ()
     interviewer_labels: tuple[str, ...] = ()
@@ -202,69 +202,11 @@ class EvaluationReportDiff:
             "cases": [case.to_dict() for case in self.case_diffs],
         }
 
-
-def load_golden_set(
-    golden_set_path: Path,
+def evaluate_cases(
+    cases: tuple[GoldenCase, ...],
     *,
-    selected_cases: tuple[str, ...] = (),
-) -> tuple[GoldenCase, ...]:
-    payload = json.loads(golden_set_path.read_text(encoding="utf-8"))
-    raw_cases = payload.get("cases")
-    if not isinstance(raw_cases, list) or not raw_cases:
-        raise RuntimeError("Golden set must contain a non-empty 'cases' list.")
-
-    allowed_names = {name.strip() for name in selected_cases if name.strip()}
-    manifest_dir = golden_set_path.parent
-    cases: list[GoldenCase] = []
-
-    for index, raw_case in enumerate(raw_cases, start=1):
-        if not isinstance(raw_case, dict):
-            raise RuntimeError(f"Golden set case #{index} must be an object.")
-
-        name = str(raw_case.get("name") or "").strip()
-        source = str(raw_case.get("source") or "").strip()
-        if not name or not source:
-            raise RuntimeError(
-                f"Golden set case #{index} must define both 'name' and 'source'."
-            )
-        if allowed_names and name not in allowed_names:
-            continue
-
-        source_path = Path(source)
-        if not source_path.is_absolute():
-            source_path = manifest_dir / source_path
-
-        cases.append(
-            GoldenCase(
-                name=name,
-                source_path=source_path,
-                required_questions=_normalize_string_tuple(raw_case.get("required_questions")),
-                forbidden_questions=_normalize_string_tuple(raw_case.get("forbidden_questions")),
-                interviewer_labels=_normalize_string_tuple(raw_case.get("interviewer_labels")),
-                deduplicate=bool(
-                    raw_case.get("deduplicate", DEFAULT_DEDUPLICATE_QUESTIONS)
-                ),
-                min_length=int(raw_case.get("min_length", DEFAULT_MIN_QUESTION_LENGTH)),
-                max_length=int(raw_case.get("max_length", DEFAULT_MAX_QUESTION_LENGTH)),
-            )
-        )
-
-    if allowed_names and not cases:
-        available = ", ".join(str(case.get("name", "")) for case in raw_cases if isinstance(case, dict))
-        raise RuntimeError(
-            "None of the requested evaluation cases were found in the golden set. "
-            f"Available cases: {available}"
-        )
-
-    return tuple(cases)
-
-
-def evaluate_golden_set(
     golden_set_path: Path,
-    *,
-    selected_cases: tuple[str, ...] = (),
 ) -> EvaluationReport:
-    cases = load_golden_set(golden_set_path, selected_cases=selected_cases)
     if not cases:
         raise RuntimeError("Golden set does not contain any evaluation cases.")
 
@@ -272,46 +214,6 @@ def evaluate_golden_set(
     return EvaluationReport(
         golden_set_path=golden_set_path,
         cases=evaluations,
-    )
-
-
-def load_evaluation_report(report_path: Path) -> EvaluationReport:
-    payload = json.loads(report_path.read_text(encoding="utf-8"))
-    raw_cases = payload.get("cases")
-    if not isinstance(raw_cases, list):
-        raise RuntimeError("Evaluation report must contain a 'cases' list.")
-
-    cases: list[CaseEvaluation] = []
-    golden_set_path = Path(str(payload.get("golden_set_path") or report_path))
-    for index, raw_case in enumerate(raw_cases, start=1):
-        if not isinstance(raw_case, dict):
-            raise RuntimeError(f"Evaluation report case #{index} must be an object.")
-
-        case_name = str(raw_case.get("name") or "").strip()
-        source_path = Path(str(raw_case.get("source_path") or ""))
-        matched_required = _normalize_string_tuple(raw_case.get("matched_required"))
-        missing_required = _normalize_string_tuple(raw_case.get("missing_required"))
-        present_forbidden = _normalize_string_tuple(raw_case.get("present_forbidden"))
-        extracted_questions = _normalize_string_tuple(raw_case.get("extracted_questions"))
-
-        cases.append(
-            CaseEvaluation(
-                case=GoldenCase(
-                    name=case_name,
-                    source_path=source_path,
-                    required_questions=tuple(matched_required + missing_required),
-                    forbidden_questions=tuple(present_forbidden),
-                ),
-                extracted_questions=tuple(extracted_questions),
-                matched_required=tuple(matched_required),
-                missing_required=tuple(missing_required),
-                present_forbidden=tuple(present_forbidden),
-            )
-        )
-
-    return EvaluationReport(
-        golden_set_path=golden_set_path,
-        cases=tuple(cases),
     )
 
 
@@ -399,9 +301,8 @@ def diff_evaluation_reports(
 
 
 def _evaluate_case(case: GoldenCase) -> CaseEvaluation:
-    transcript_text = case.source_path.read_text(encoding="utf-8")
     extraction_result = extract_questions(
-        transcript_text,
+        case.transcript_text,
         deduplicate=case.deduplicate,
         min_length=case.min_length,
         max_length=case.max_length,
@@ -434,21 +335,6 @@ def _evaluate_case(case: GoldenCase) -> CaseEvaluation:
         missing_required=tuple(missing_required),
         present_forbidden=tuple(present_forbidden),
     )
-
-
-def _normalize_string_tuple(value: object) -> tuple[str, ...]:
-    if value is None:
-        return ()
-    if not isinstance(value, list):
-        raise RuntimeError("Golden set values must be lists of strings.")
-    result: list[str] = []
-    for item in value:
-        text = str(item).strip()
-        if text:
-            result.append(text)
-    return tuple(result)
-
-
 def _canonicalize_question(value: str) -> str:
     normalized = CANONICAL_QUESTION_RE.sub(" ", value.lower()).strip()
     return normalized.strip(" .,!;:-?")
