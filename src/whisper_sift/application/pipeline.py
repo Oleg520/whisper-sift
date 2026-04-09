@@ -10,12 +10,18 @@ from whisper_sift.config import (
     DEFAULT_MIN_QUESTION_LENGTH,
     DEFAULT_QUESTION_SUFFIX,
     DEFAULT_WRITE_QUESTION_JSON,
+    ExtractionPolicy,
+    OutputPolicy,
     QuestionExtractionOptions,
     TranscriptionOptions,
 )
 from whisper_sift.runtime.reporting import ProgressReporter
 
-from .extract_questions import ExtractQuestionsRequest, run_extract_questions
+from .extract_questions import (
+    ExtractQuestionsRequest,
+    ExtractQuestionsResult,
+    run_extract_questions,
+)
 from .transcribe import TranscribeRequest, TranscribeResult, run_transcribe
 
 
@@ -23,6 +29,8 @@ from .transcribe import TranscribeRequest, TranscribeResult, run_transcribe
 class PipelineRequest:
     transcription_options: TranscriptionOptions
     questions_output_dir: Path | None = None
+    output: OutputPolicy | None = None
+    extraction: ExtractionPolicy | None = None
     suffix: str = DEFAULT_QUESTION_SUFFIX
     write_json: bool = DEFAULT_WRITE_QUESTION_JSON
     deduplicate: bool = DEFAULT_DEDUPLICATE_QUESTIONS
@@ -31,12 +39,55 @@ class PipelineRequest:
     interviewer_labels: tuple[str, ...] = DEFAULT_INTERVIEWER_LABELS
     reporter: ProgressReporter | None = None
 
+    def __post_init__(self) -> None:
+        if self.output is None:
+            self.output = OutputPolicy(
+                suffix=self.suffix,
+                write_json=self.write_json,
+            )
+        else:
+            self.suffix = self.output.suffix
+            self.write_json = self.output.write_json
+
+        if self.extraction is None:
+            self.extraction = ExtractionPolicy(
+                deduplicate=self.deduplicate,
+                min_length=self.min_length,
+                max_length=self.max_length,
+                interviewer_labels=self.interviewer_labels,
+            )
+        else:
+            self.deduplicate = self.extraction.deduplicate
+            self.min_length = self.extraction.min_length
+            self.max_length = self.extraction.max_length
+            self.interviewer_labels = self.extraction.interviewer_labels
+
 
 @dataclass(slots=True)
 class PipelineResult:
     transcription: TranscribeResult
-    generated_question_files: tuple[Path, ...]
-    generated_question_json_files: tuple[Path, ...] = ()
+    questions: ExtractQuestionsResult
+
+    @property
+    def generated_question_files(self) -> tuple[Path, ...]:
+        return self.questions.generated_files
+
+    @property
+    def generated_question_json_files(self) -> tuple[Path, ...]:
+        return self.questions.generated_json_files
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "transcription": self.transcription.to_dict(),
+            "questions": self.questions.to_dict(),
+            "question_source_count": len(self.questions.artifacts),
+            "generated_question_files": [
+                str(path) for path in self.generated_question_files
+            ],
+            "generated_question_json_files": [
+                str(path) for path in self.generated_question_json_files
+            ],
+        }
 
 
 def run_pipeline(request: PipelineRequest) -> PipelineResult:
@@ -50,12 +101,8 @@ def run_pipeline(request: PipelineRequest) -> PipelineResult:
     question_options = QuestionExtractionOptions(
         files=transcript_files,
         output_dir=request.questions_output_dir,
-        suffix=request.suffix,
-        write_json=request.write_json,
-        deduplicate=request.deduplicate,
-        min_length=request.min_length,
-        max_length=request.max_length,
-        interviewer_labels=request.interviewer_labels,
+        output=request.output,
+        extraction=request.extraction,
     )
     questions_result = run_extract_questions(
         ExtractQuestionsRequest(
@@ -65,8 +112,7 @@ def run_pipeline(request: PipelineRequest) -> PipelineResult:
     )
     return PipelineResult(
         transcription=transcription_result,
-        generated_question_files=questions_result.generated_files,
-        generated_question_json_files=questions_result.generated_json_files,
+        questions=questions_result,
     )
 
 

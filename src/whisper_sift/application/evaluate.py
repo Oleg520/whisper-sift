@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from whisper_sift.config import EvaluationPolicy
 from whisper_sift.domain.evaluation import (
     EvaluationReport,
     EvaluationReportDiff,
@@ -24,9 +25,20 @@ class EvaluateRequest:
     report_json_path: Path | None = None
     baseline_report_path: Path | None = None
     diff_json_path: Path | None = None
+    evaluation: EvaluationPolicy | None = None
     update_baseline: bool = False
     selected_cases: tuple[str, ...] = ()
     reporter: ProgressReporter | None = None
+
+    def __post_init__(self) -> None:
+        if self.evaluation is None:
+            self.evaluation = EvaluationPolicy(
+                selected_cases=self.selected_cases,
+                update_baseline=self.update_baseline,
+            )
+        else:
+            self.selected_cases = self.evaluation.selected_cases
+            self.update_baseline = self.evaluation.update_baseline
 
 
 @dataclass(slots=True)
@@ -42,7 +54,7 @@ def run_evaluate(request: EvaluateRequest) -> EvaluateResult:
     golden_set_path = request.golden_set_path.expanduser()
     cases = load_golden_set(
         golden_set_path,
-        selected_cases=request.selected_cases,
+        selected_cases=request.evaluation.selected_cases,
     )
     report = evaluate_cases(cases, golden_set_path=golden_set_path)
     for case in report.cases:
@@ -80,7 +92,7 @@ def run_evaluate(request: EvaluateRequest) -> EvaluateResult:
 
     diff: EvaluationReportDiff | None = None
     if baseline_report_path is not None:
-        if not baseline_report_path.exists() and not request.update_baseline:
+        if not baseline_report_path.exists() and not request.evaluation.update_baseline:
             raise RuntimeError(
                 f"Baseline report not found: {baseline_report_path}"
             )
@@ -100,7 +112,7 @@ def run_evaluate(request: EvaluateRequest) -> EvaluateResult:
                     f"[eval] Diff written to {diff_json_path}",
                 )
 
-    if request.update_baseline and baseline_report_path is not None:
+    if request.evaluation.update_baseline and baseline_report_path is not None:
         write_evaluation_report(report, baseline_report_path)
         report_progress(
             request.reporter,

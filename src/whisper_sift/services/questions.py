@@ -5,6 +5,7 @@ from pathlib import Path
 
 from whisper_sift.config import QuestionExtractionOptions
 from whisper_sift.domain.extraction import extract_questions
+from whisper_sift.domain.questions import QuestionOutputArtifact
 from whisper_sift.infrastructure.filesystem import (
     build_json_sidecar_path,
     build_question_output_path,
@@ -18,8 +19,27 @@ from whisper_sift.runtime.reporting import ProgressReporter, report_progress
 
 @dataclass(slots=True)
 class QuestionOutputArtifacts:
-    text_files: tuple[Path, ...]
-    json_files: tuple[Path, ...]
+    items: tuple[QuestionOutputArtifact, ...]
+
+    @property
+    def text_files(self) -> tuple[Path, ...]:
+        return tuple(item.text_file for item in self.items)
+
+    @property
+    def json_files(self) -> tuple[Path, ...]:
+        return tuple(
+            item.json_file
+            for item in self.items
+            if item.json_file is not None
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "file_count": len(self.items),
+            "text_files": [str(path) for path in self.text_files],
+            "json_files": [str(path) for path in self.json_files],
+            "items": [item.to_dict() for item in self.items],
+        }
 
 
 def extract_questions_from_files(
@@ -27,8 +47,7 @@ def extract_questions_from_files(
     *,
     reporter: ProgressReporter | None = None,
 ) -> QuestionOutputArtifacts:
-    generated_text_files: list[Path] = []
-    generated_json_files: list[Path] = []
+    generated_items: list[QuestionOutputArtifact] = []
 
     for source in options.files:
         resolved_source = ensure_existing_file(
@@ -38,28 +57,26 @@ def extract_questions_from_files(
 
         extraction = extract_questions(
             read_text_file(resolved_source),
-            deduplicate=options.deduplicate,
-            min_length=options.min_length,
-            max_length=options.max_length,
-            interviewer_labels=options.interviewer_labels,
+            deduplicate=options.extraction.deduplicate,
+            min_length=options.extraction.min_length,
+            max_length=options.extraction.max_length,
+            interviewer_labels=options.extraction.interviewer_labels,
             source_name=resolved_source.name,
         )
         output_path = build_question_output_path(
             source=resolved_source,
             output_dir=options.output_dir,
-            suffix=options.suffix,
+            suffix=options.output.suffix,
         )
         write_text_file(output_path, "\n".join(extraction.question_texts))
-        generated_text_files.append(output_path)
 
         json_output_path: Path | None = None
-        if options.write_json:
+        if options.output.write_json:
             json_output_path = build_json_sidecar_path(output_path)
             write_json_file(
                 json_output_path,
                 extraction.to_dict(source_path=str(resolved_source)),
             )
-            generated_json_files.append(json_output_path)
 
         details = f"[questions] {resolved_source.name} -> {output_path.name}"
         if json_output_path is not None:
@@ -68,8 +85,13 @@ def extract_questions_from_files(
             reporter,
             f"{details} ({len(extraction.questions)} items)",
         )
+        generated_items.append(
+            QuestionOutputArtifact(
+                source_path=resolved_source,
+                text_file=output_path,
+                json_file=json_output_path,
+                question_count=len(extraction.questions),
+            )
+        )
 
-    return QuestionOutputArtifacts(
-        text_files=tuple(generated_text_files),
-        json_files=tuple(generated_json_files),
-    )
+    return QuestionOutputArtifacts(items=tuple(generated_items))

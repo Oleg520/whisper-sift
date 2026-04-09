@@ -28,27 +28,86 @@ from whisper_sift.config import (
     DEFAULT_MAX_QUESTION_LENGTH,
     DEFAULT_MIN_QUESTION_LENGTH,
     DEFAULT_QUESTION_SUFFIX,
+    EvaluationPolicy,
+    ExtractionPolicy,
+    OutputPolicy,
     QuestionExtractionOptions,
     TranscriptionOptions,
+)
+from whisper_sift.domain.questions import QuestionOutputArtifact
+from whisper_sift.domain.transcription import (
+    TranscriptionArtifact,
+    TranscriptionBatchResult,
+    TranscriptionDocument,
+    TranscriptionOutputFile,
 )
 
 
 class ApplicationTests(unittest.TestCase):
-    @patch("whisper_sift.services.transcription.transcribe_files")
+    def test_pipeline_request_keeps_legacy_fields_in_sync_with_policies(self) -> None:
+        request = PipelineRequest(
+            transcription_options=TranscriptionOptions(
+                files=[Path("sample.mkv")],
+                output_dir=Path("results"),
+            ),
+            suffix="_custom.txt",
+            write_json=True,
+            deduplicate=False,
+            min_length=15,
+            max_length=180,
+            interviewer_labels=("Lead",),
+        )
+
+        self.assertEqual("_custom.txt", request.output.suffix)
+        self.assertTrue(request.output.write_json)
+        self.assertFalse(request.extraction.deduplicate)
+        self.assertEqual(15, request.extraction.min_length)
+        self.assertEqual(180, request.extraction.max_length)
+        self.assertEqual(("Lead",), request.extraction.interviewer_labels)
+
+    def test_evaluate_request_keeps_legacy_fields_in_sync_with_policy(self) -> None:
+        request = EvaluateRequest(
+            golden_set_path=Path("golden.json"),
+            selected_cases=("alpha", "beta"),
+            update_baseline=True,
+        )
+
+        self.assertEqual(("alpha", "beta"), request.evaluation.selected_cases)
+        self.assertTrue(request.evaluation.update_baseline)
+
+    @patch("whisper_sift.services.transcription.transcribe_sources")
     def test_run_transcribe_returns_result(
         self,
-        transcribe_files_mock,
+        transcribe_sources_mock,
     ) -> None:
         options = TranscriptionOptions(
             files=[Path("interview.mkv")],
             output_dir=Path("results"),
         )
-        transcribe_files_mock.return_value = [Path("results/interview.txt")]
+        transcribe_sources_mock.return_value = TranscriptionBatchResult(
+            artifacts=(
+                TranscriptionArtifact(
+                    source_path=Path("interview.mkv"),
+                    document=TranscriptionDocument(text="hello", language="ru"),
+                    outputs=(
+                        TranscriptionOutputFile(
+                            path=Path("results/interview.txt"),
+                            output_format="txt",
+                        ),
+                    ),
+                    model_name="small",
+                    requested_device="auto",
+                    resolved_device="cpu",
+                    use_fp16=False,
+                ),
+            )
+        )
 
         result = run_transcribe(TranscribeRequest(options=options))
 
-        transcribe_files_mock.assert_called_once_with(options, reporter=None)
+        transcribe_sources_mock.assert_called_once_with(options, reporter=None)
         self.assertEqual((Path("results/interview.txt"),), result.generated_files)
+        self.assertEqual("small", result.artifacts[0].model_name)
 
     @patch("whisper_sift.runtime.dependencies.ensure_transcription_dependencies")
     def test_run_provision_transcription_runtime_bootstraps_dependencies(
@@ -68,8 +127,14 @@ class ApplicationTests(unittest.TestCase):
         from whisper_sift.services.questions import QuestionOutputArtifacts
 
         extract_questions_mock.return_value = QuestionOutputArtifacts(
-            text_files=(Path("interview_questions.txt"),),
-            json_files=(Path("interview_questions.json"),),
+            items=(
+                QuestionOutputArtifact(
+                    source_path=Path("interview.txt"),
+                    text_file=Path("interview_questions.txt"),
+                    json_file=Path("interview_questions.json"),
+                    question_count=2,
+                ),
+            ),
         )
 
         result = run_extract_questions(ExtractQuestionsRequest(options=options))
@@ -77,6 +142,7 @@ class ApplicationTests(unittest.TestCase):
         extract_questions_mock.assert_called_once_with(options, reporter=None)
         self.assertEqual((Path("interview_questions.txt"),), result.generated_files)
         self.assertEqual((Path("interview_questions.json"),), result.generated_json_files)
+        self.assertEqual(2, result.artifacts[0].question_count)
 
     @patch("whisper_sift.application.pipeline.run_extract_questions")
     @patch("whisper_sift.application.pipeline.run_transcribe")
@@ -94,23 +160,52 @@ class ApplicationTests(unittest.TestCase):
             formats=("txt", "srt"),
         )
         run_transcribe_mock.return_value = TranscribeResult(
-            generated_files=(Path("results/interview.txt"), Path("results/interview.srt"))
+            artifacts=(
+                TranscriptionArtifact(
+                    source_path=Path("results/interview.mkv"),
+                    document=TranscriptionDocument(text="hello", language="ru"),
+                    outputs=(
+                        TranscriptionOutputFile(
+                            path=Path("results/interview.txt"),
+                            output_format="txt",
+                        ),
+                        TranscriptionOutputFile(
+                            path=Path("results/interview.srt"),
+                            output_format="srt",
+                        ),
+                    ),
+                    model_name="small",
+                    requested_device="auto",
+                    resolved_device="cpu",
+                    use_fp16=False,
+                ),
+            )
         )
         run_extract_questions_mock.return_value = ExtractQuestionsResult(
-            generated_files=(Path("questions/interview_questions.txt"),),
-            generated_json_files=(Path("questions/interview_questions.json"),),
+            artifacts=(
+                QuestionOutputArtifact(
+                    source_path=Path("results/interview.srt"),
+                    text_file=Path("questions/interview_questions.txt"),
+                    json_file=Path("questions/interview_questions.json"),
+                    question_count=4,
+                ),
+            )
         )
 
         result = run_pipeline(
             PipelineRequest(
                 transcription_options=transcription_options,
                 questions_output_dir=Path("questions"),
-                suffix=DEFAULT_QUESTION_SUFFIX,
-                write_json=True,
-                deduplicate=True,
-                min_length=DEFAULT_MIN_QUESTION_LENGTH,
-                max_length=DEFAULT_MAX_QUESTION_LENGTH,
-                interviewer_labels=("SPEAKER_00",),
+                output=OutputPolicy(
+                    suffix=DEFAULT_QUESTION_SUFFIX,
+                    write_json=True,
+                ),
+                extraction=ExtractionPolicy(
+                    deduplicate=True,
+                    min_length=DEFAULT_MIN_QUESTION_LENGTH,
+                    max_length=DEFAULT_MAX_QUESTION_LENGTH,
+                    interviewer_labels=("SPEAKER_00",),
+                ),
             )
         )
 
@@ -128,6 +223,15 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(
             (Path("questions/interview_questions.json"),),
             result.generated_question_json_files,
+        )
+        self.assertEqual(4, result.questions.artifacts[0].question_count)
+        self.assertEqual(
+            1,
+            result.to_dict()["question_source_count"],
+        )
+        self.assertEqual(
+            [str(Path("questions/interview_questions.txt"))],
+            result.to_dict()["generated_question_files"],
         )
 
     @patch("whisper_sift.runtime.doctor.collect_doctor_report")
@@ -180,6 +284,7 @@ class ApplicationTests(unittest.TestCase):
                 EvaluateRequest(
                     golden_set_path=golden_set,
                     report_json_path=report_json,
+                    evaluation=EvaluationPolicy(),
                 )
             )
 
@@ -261,7 +366,7 @@ class ApplicationTests(unittest.TestCase):
                     report_json_path=report_json,
                     baseline_report_path=baseline_json,
                     diff_json_path=diff_json,
-                    update_baseline=True,
+                    evaluation=EvaluationPolicy(update_baseline=True),
                 )
             )
 

@@ -14,7 +14,7 @@ if str(SRC_DIR) not in sys.path:
 
 from whisper_sift.config import TranscriptionOptions
 from whisper_sift.domain.transcription import TranscriptionDocument
-from whisper_sift.services.transcription import transcribe_files
+from whisper_sift.services.transcription import transcribe_files, transcribe_sources
 
 
 class TranscriptionTests(unittest.TestCase):
@@ -83,6 +83,55 @@ class TranscriptionTests(unittest.TestCase):
             TranscriptionDocument,
         )
         self.assertEqual([output_dir / "interview.txt"], result)
+
+    @patch("whisper_sift.services.transcription.write_whisper_outputs")
+    @patch("whisper_sift.services.transcription.ensure_ffmpeg_on_path")
+    @patch("whisper_sift.services.transcription.load_whisper_backend")
+    def test_transcribe_sources_returns_structured_artifacts(
+        self,
+        load_backend_mock,
+        ensure_ffmpeg_mock,
+        write_outputs_mock,
+    ) -> None:
+        backend = Mock()
+        backend.model_name = "small"
+        backend.resolved_device = "cpu"
+        backend.use_fp16 = False
+        backend.requires_media_runtime = True
+        backend.transcribe_file.return_value = TranscriptionDocument(
+            text="hello",
+            language="ru",
+        )
+        load_backend_mock.return_value = backend
+        ensure_ffmpeg_mock.return_value = Path("/usr/bin/ffmpeg")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            source = workspace / "interview.mkv"
+            source.write_bytes(b"fake media")
+            output_dir = workspace / "results"
+            write_outputs_mock.return_value = [
+                output_dir / "interview.txt",
+                output_dir / "interview.srt",
+            ]
+
+            result = transcribe_sources(
+                TranscriptionOptions(
+                    files=[source],
+                    output_dir=output_dir,
+                    formats=("txt", "srt"),
+                )
+            )
+
+        self.assertEqual(1, len(result.artifacts))
+        artifact = result.artifacts[0]
+        self.assertEqual(source.resolve(), artifact.source_path)
+        self.assertEqual("small", artifact.model_name)
+        self.assertEqual(("txt", "srt"), tuple(output.output_format for output in artifact.outputs))
+        self.assertEqual(
+            (output_dir / "interview.txt", output_dir / "interview.srt"),
+            artifact.generated_files,
+        )
 
 
 if __name__ == "__main__":

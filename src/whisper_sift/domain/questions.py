@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from whisper_sift.domain.transcript import TranscriptView
 
@@ -50,4 +51,20 @@ class QuestionExtractionResult:
             "question_texts": list(self.question_texts),
             "questions": [candidate.to_dict() for candidate in self.questions],
             "transcript": self.transcript.to_dict(),
+        }
+
+
+@dataclass(slots=True, frozen=True)
+class QuestionOutputArtifact:
+    source_path: Path
+    text_file: Path
+    question_count: int
+    json_file: Path | None = None
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "source_path": str(self.source_path),
+            "text_file": str(self.text_file),
+            "json_file": str(self.json_file) if self.json_file is not None else None,
+            "question_count": self.question_count,
         }

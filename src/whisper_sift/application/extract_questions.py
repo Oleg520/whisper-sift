@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from whisper_sift.config import QuestionExtractionOptions
+from whisper_sift.domain.questions import QuestionOutputArtifact
 from whisper_sift.runtime.reporting import ProgressReporter
 
 
@@ -15,8 +16,27 @@ class ExtractQuestionsRequest:
 
 @dataclass(slots=True)
 class ExtractQuestionsResult:
-    generated_files: tuple[Path, ...]
-    generated_json_files: tuple[Path, ...] = ()
+    artifacts: tuple[QuestionOutputArtifact, ...]
+
+    @property
+    def generated_files(self) -> tuple[Path, ...]:
+        return tuple(artifact.text_file for artifact in self.artifacts)
+
+    @property
+    def generated_json_files(self) -> tuple[Path, ...]:
+        return tuple(
+            artifact.json_file
+            for artifact in self.artifacts
+            if artifact.json_file is not None
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        return {
+            "file_count": len(self.artifacts),
+            "generated_files": [str(path) for path in self.generated_files],
+            "generated_json_files": [str(path) for path in self.generated_json_files],
+            "artifacts": [artifact.to_dict() for artifact in self.artifacts],
+        }
 
 
 def run_extract_questions(request: ExtractQuestionsRequest) -> ExtractQuestionsResult:
@@ -27,6 +47,5 @@ def run_extract_questions(request: ExtractQuestionsRequest) -> ExtractQuestionsR
         reporter=request.reporter,
     )
     return ExtractQuestionsResult(
-        generated_files=artifacts.text_files,
-        generated_json_files=artifacts.json_files,
+        artifacts=artifacts.items,
     )

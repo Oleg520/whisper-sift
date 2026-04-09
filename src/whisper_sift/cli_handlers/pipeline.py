@@ -8,7 +8,12 @@ from whisper_sift.application.provision_runtime import (
     run_provision_transcription_runtime,
 )
 from whisper_sift.cli_handlers.shared import normalize_pipeline_formats
-from whisper_sift.config import TranscriptionOptions, normalize_transcription_language
+from whisper_sift.config import (
+    ExtractionPolicy,
+    OutputPolicy,
+    TranscriptionOptions,
+    normalize_transcription_language,
+)
 from whisper_sift.runtime.reporting import ConsoleReporter
 
 
@@ -37,12 +42,16 @@ def handle_pipeline(args: argparse.Namespace) -> int:
         PipelineRequest(
             transcription_options=transcription_options,
             questions_output_dir=question_dir,
-            suffix=args.suffix,
-            write_json=args.json,
-            deduplicate=not args.no_deduplicate,
-            min_length=args.min_length,
-            max_length=args.max_length,
-            interviewer_labels=tuple(args.interviewer_label),
+            output=OutputPolicy(
+                suffix=args.suffix,
+                write_json=args.json,
+            ),
+            extraction=ExtractionPolicy(
+                deduplicate=not args.no_deduplicate,
+                min_length=args.min_length,
+                max_length=args.max_length,
+                interviewer_labels=tuple(args.interviewer_label),
+            ),
             reporter=reporter,
         )
     )

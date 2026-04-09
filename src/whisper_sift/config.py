@@ -43,12 +43,57 @@ class TranscriptionOptions:
 
 
 @dataclass(slots=True)
+class OutputPolicy:
+    suffix: str = DEFAULT_QUESTION_SUFFIX
+    write_json: bool = DEFAULT_WRITE_QUESTION_JSON
+
+
+@dataclass(slots=True)
+class ExtractionPolicy:
+    deduplicate: bool = DEFAULT_DEDUPLICATE_QUESTIONS
+    min_length: int = DEFAULT_MIN_QUESTION_LENGTH
+    max_length: int = DEFAULT_MAX_QUESTION_LENGTH
+    interviewer_labels: tuple[str, ...] = DEFAULT_INTERVIEWER_LABELS
+
+
+@dataclass(slots=True)
+class EvaluationPolicy:
+    selected_cases: tuple[str, ...] = ()
+    update_baseline: bool = False
+
+
+@dataclass(slots=True)
 class QuestionExtractionOptions:
     files: list[Path]
     output_dir: Path | None = None
+    output: OutputPolicy | None = None
+    extraction: ExtractionPolicy | None = None
     suffix: str = DEFAULT_QUESTION_SUFFIX
     write_json: bool = DEFAULT_WRITE_QUESTION_JSON
     deduplicate: bool = DEFAULT_DEDUPLICATE_QUESTIONS
     min_length: int = DEFAULT_MIN_QUESTION_LENGTH
     max_length: int = DEFAULT_MAX_QUESTION_LENGTH
     interviewer_labels: tuple[str, ...] = DEFAULT_INTERVIEWER_LABELS
+
+    def __post_init__(self) -> None:
+        if self.output is None:
+            self.output = OutputPolicy(
+                suffix=self.suffix,
+                write_json=self.write_json,
+            )
+        else:
+            self.suffix = self.output.suffix
+            self.write_json = self.output.write_json
+
+        if self.extraction is None:
+            self.extraction = ExtractionPolicy(
+                deduplicate=self.deduplicate,
+                min_length=self.min_length,
+                max_length=self.max_length,
+                interviewer_labels=self.interviewer_labels,
+            )
+        else:
+            self.deduplicate = self.extraction.deduplicate
+            self.min_length = self.extraction.min_length
+            self.max_length = self.extraction.max_length
+            self.interviewer_labels = self.extraction.interviewer_labels

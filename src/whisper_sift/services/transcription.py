@@ -3,6 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 
 from whisper_sift.config import TranscriptionOptions
+from whisper_sift.domain.transcription import (
+    TranscriptionArtifact,
+    TranscriptionBatchResult,
+    TranscriptionOutputFile,
+)
 from whisper_sift.infrastructure.ffmpeg import ensure_ffmpeg_on_path
 from whisper_sift.infrastructure.filesystem import (
     ensure_existing_file,
@@ -18,6 +23,14 @@ def transcribe_files(
     *,
     reporter: ProgressReporter | None = None,
 ) -> list[Path]:
+    return list(transcribe_sources(options, reporter=reporter).generated_files)
+
+
+def transcribe_sources(
+    options: TranscriptionOptions,
+    *,
+    reporter: ProgressReporter | None = None,
+) -> TranscriptionBatchResult:
     resolved_sources = [
         ensure_existing_file(source, error_prefix="Input file not found")
         for source in options.files
@@ -42,7 +55,7 @@ def transcribe_files(
         f"[device]  requested={options.device} resolved={backend.resolved_device}",
     )
     report_progress(reporter, f"[fp16]    {backend.use_fp16}")
-    generated_files: list[Path] = []
+    artifacts: list[TranscriptionArtifact] = []
 
     for resolved_source in resolved_sources:
         report_progress(reporter, f"[start] {resolved_source.name}")
@@ -50,14 +63,29 @@ def transcribe_files(
             resolved_source,
             language=options.language,
         )
-        generated_files.extend(
-            write_whisper_outputs(
-                result=result,
-                source=resolved_source,
-                output_dir=output_dir,
-                formats=options.formats,
+        generated_files = write_whisper_outputs(
+            result=result,
+            source=resolved_source,
+            output_dir=output_dir,
+            formats=options.formats,
+        )
+        artifacts.append(
+            TranscriptionArtifact(
+                source_path=resolved_source,
+                document=result,
+                outputs=tuple(
+                    TranscriptionOutputFile(
+                        path=path,
+                        output_format=path.suffix.lstrip(".").lower(),
+                    )
+                    for path in generated_files
+                ),
+                model_name=backend.model_name,
+                requested_device=options.device,
+                resolved_device=backend.resolved_device,
+                use_fp16=backend.use_fp16,
             )
         )
         report_progress(reporter, f"[done]  {resolved_source.name}")
 
-    return generated_files
+    return TranscriptionBatchResult(artifacts=tuple(artifacts))

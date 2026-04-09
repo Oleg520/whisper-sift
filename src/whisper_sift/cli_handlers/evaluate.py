@@ -5,6 +5,7 @@ from pathlib import Path
 
 from whisper_sift.application.evaluate import EvaluateRequest, run_evaluate
 from whisper_sift.cli_handlers.shared import default_golden_set_path
+from whisper_sift.config import EvaluationPolicy
 from whisper_sift.runtime.reporting import ConsoleReporter
 
 
@@ -44,8 +45,10 @@ def handle_evaluate(args: argparse.Namespace) -> int:
             report_json_path=report_json_path,
             baseline_report_path=baseline_report_path,
             diff_json_path=diff_json_path,
-            update_baseline=args.update_baseline,
-            selected_cases=tuple(args.case),
+            evaluation=EvaluationPolicy(
+                selected_cases=tuple(args.case),
+                update_baseline=args.update_baseline,
+            ),
             reporter=reporter,
         )
     )
