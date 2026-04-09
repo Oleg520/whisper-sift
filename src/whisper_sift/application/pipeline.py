@@ -15,7 +15,8 @@ from whisper_sift.config import (
     QuestionExtractionOptions,
     TranscriptionOptions,
 )
-from whisper_sift.runtime.reporting import ProgressReporter
+from whisper_sift.infrastructure.filesystem import write_json_file
+from whisper_sift.runtime.reporting import ProgressReporter, report_progress
 
 from .extract_questions import (
     ExtractQuestionsRequest,
@@ -29,6 +30,7 @@ from .transcribe import TranscribeRequest, TranscribeResult, run_transcribe
 class PipelineRequest:
     transcription_options: TranscriptionOptions
     questions_output_dir: Path | None = None
+    summary_json_path: Path | None = None
     output: OutputPolicy | None = None
     extraction: ExtractionPolicy | None = None
     suffix: str = DEFAULT_QUESTION_SUFFIX
@@ -67,6 +69,7 @@ class PipelineRequest:
 class PipelineResult:
     transcription: TranscribeResult
     questions: ExtractQuestionsResult
+    summary_json_path: Path | None = None
 
     @property
     def generated_question_files(self) -> tuple[Path, ...]:
@@ -94,6 +97,7 @@ def run_pipeline(request: PipelineRequest) -> PipelineResult:
     transcription_result = run_transcribe(
         TranscribeRequest(
             options=request.transcription_options,
+            summary_json_path=None,
             reporter=request.reporter,
         )
     )
@@ -110,10 +114,23 @@ def run_pipeline(request: PipelineRequest) -> PipelineResult:
             reporter=request.reporter,
         )
     )
-    return PipelineResult(
+    summary_json_path = (
+        request.summary_json_path.expanduser().resolve()
+        if request.summary_json_path is not None
+        else None
+    )
+    result = PipelineResult(
         transcription=transcription_result,
         questions=questions_result,
+        summary_json_path=summary_json_path,
     )
+    if summary_json_path is not None:
+        write_json_file(summary_json_path, result.to_dict())
+        report_progress(
+            request.reporter,
+            f"[summary] {summary_json_path}",
+        )
+    return result
 
 
 def _select_question_sources(generated_files: tuple[Path, ...]) -> list[Path]:

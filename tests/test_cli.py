@@ -44,6 +44,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(DEFAULT_TRANSCRIPTION_LANGUAGE, transcribe_args.language)
         self.assertEqual(DEFAULT_TRANSCRIPTION_DEVICE, transcribe_args.device)
         self.assertEqual(list(DEFAULT_OUTPUT_FORMATS), transcribe_args.formats)
+        self.assertIsNone(transcribe_args.summary_json)
         self.assertEqual(DEFAULT_QUESTION_SUFFIX, extract_args.suffix)
         self.assertEqual(DEFAULT_WRITE_QUESTION_JSON, extract_args.json)
         self.assertEqual(DEFAULT_MIN_QUESTION_LENGTH, extract_args.min_length)
@@ -53,6 +54,8 @@ class CliTests(unittest.TestCase):
         self.assertIsNone(evaluate_args.baseline_report)
         self.assertIsNone(evaluate_args.diff_json)
         self.assertFalse(evaluate_args.update_baseline)
+        pipeline_args = parser.parse_args(["pipeline", "sample.mkv"])
+        self.assertIsNone(pipeline_args.summary_json)
 
     def test_normalize_output_formats_deduplicates_and_lowercases(self) -> None:
         normalized = _normalize_output_formats(["TXT", "srt", "txt", " SRT "])

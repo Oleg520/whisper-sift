@@ -12,6 +12,7 @@ CLI-инструмент для расшифровки интервью чере
 - Speaker-aware извлечение для speaker-labeled или diarized transcript-файлов
 - Диагностическая команда `doctor`
 - Локальная команда `evaluate` для regression-проверки extraction по golden set
+- JSON summary для `transcribe` и `pipeline`
 - Автоматическая установка runtime-зависимостей для транскрибации
 - Автоматический выбор устройства `auto/cpu/cuda/mps`
 - Кроссплатформенная подготовка `ffmpeg` с приоритетом системного бинарника
@@ -46,6 +47,12 @@ whisper-sift doctor
 python transcribe_whisper.py transcribe interview_part1.mkv interview_part2.mkv --model small --language ru --output-dir results
 ```
 
+Если нужен структурированный summary по транскрибации:
+
+```powershell
+python transcribe_whisper.py transcribe interview_part1.mkv --output-dir results --summary-json results\transcribe_summary.json
+```
+
 Извлечение вопросов из готовых расшифровок:
 
 ```powershell
@@ -70,6 +77,12 @@ python transcribe_whisper.py extract-questions diarized.txt --interviewer-label 
 python transcribe_whisper.py pipeline interview_part1.mkv interview_part2.mkv --model small --language ru --output-dir results --questions-dir questions
 ```
 
+И тот же запуск с общим JSON summary:
+
+```powershell
+python transcribe_whisper.py pipeline interview_part1.mkv --output-dir results --questions-dir questions --json --summary-json results\pipeline_summary.json
+```
+
 Если в `pipeline` не указать `txt` в `--formats`, приложение автоматически добавит его, потому что извлечение вопросов требует текстовую расшифровку.
 
 Если `.txt`-расшифровка после пайплайна уже содержит speaker labels, можно так же передать `--interviewer-label` и извлекать вопросы только из нужного спикера.
@@ -77,6 +90,8 @@ python transcribe_whisper.py pipeline interview_part1.mkv interview_part2.mkv --
 Для `extract-questions` и `pipeline` опция `--json` сохраняет дополнительный `.json` рядом с файлом вопросов. Если источником служит `.srt`, JSON также содержит таймкоды `start_time` / `end_time` для найденных вопросов.
 
 Если в пайплайне доступны и `.txt`, и `.srt`, приложение автоматически предпочитает `.srt` как более точный источник для извлечения вопросов.
+
+Для `transcribe` и `pipeline` опция `--summary-json` сохраняет отдельный JSON summary верхнего уровня: список артефактов, выходных файлов, модель, устройство, количество сегментов и результаты question extraction.
 
 ## Локальная оценка качества
 
@@ -121,6 +136,7 @@ python transcribe_whisper.py evaluate --baseline-report .analysis/eval/baseline_
 - `--device` — `auto`, `cpu`, `cuda`, `mps`
 - `--output-dir` — папка для результатов транскрибации
 - `--formats` — выходные форматы, по умолчанию `txt srt`
+- `--summary-json` — путь до JSON summary по результатам транскрибации или пайплайна
 
 По устройству приложение работает так:
 
@@ -206,7 +222,7 @@ python -m unittest discover -s tests -v
 
 Ближайшие направления развития:
 
-- улучшение эвристики извлечения вопросов на шумных расшифровках
-- `json`-вывод для автоматизации и интеграций
-- дальнейшая изоляция runtime/bootstrap слоя
+- улучшение discourse-level context для коротких follow-up вопросов
+- расширение локального golden set и regression loop
 - инженерная обвязка: linting, CI и автоматические проверки
+- дальнейшая стабилизация публичных JSON/export-контрактов

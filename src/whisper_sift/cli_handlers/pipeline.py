@@ -42,6 +42,7 @@ def handle_pipeline(args: argparse.Namespace) -> int:
         PipelineRequest(
             transcription_options=transcription_options,
             questions_output_dir=question_dir,
+            summary_json_path=args.summary_json,
             output=OutputPolicy(
                 suffix=args.suffix,
                 write_json=args.json,

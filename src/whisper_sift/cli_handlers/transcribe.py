@@ -24,5 +24,11 @@ def handle_transcribe(args: argparse.Namespace) -> int:
         device=args.device,
         formats=normalized_formats,
     )
-    run_transcribe(TranscribeRequest(options=options, reporter=reporter))
+    run_transcribe(
+        TranscribeRequest(
+            options=options,
+            summary_json_path=args.summary_json,
+            reporter=reporter,
+        )
+    )
     return 0

@@ -109,6 +109,49 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual((Path("results/interview.txt"),), result.generated_files)
         self.assertEqual("small", result.artifacts[0].model_name)
 
+    def test_run_transcribe_can_write_summary_json(self) -> None:
+        from whisper_sift.application.transcribe import TranscribeResult
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            summary_path = workspace / "transcribe_summary.json"
+
+            with patch("whisper_sift.application.transcribe.write_json_file") as write_json_mock, \
+                 patch("whisper_sift.services.transcription.transcribe_sources") as transcribe_sources_mock:
+                transcribe_sources_mock.return_value = TranscriptionBatchResult(
+                    artifacts=(
+                        TranscriptionArtifact(
+                            source_path=Path("interview.mkv"),
+                            document=TranscriptionDocument(text="hello", language="ru"),
+                            outputs=(
+                                TranscriptionOutputFile(
+                                    path=Path("results/interview.txt"),
+                                    output_format="txt",
+                                ),
+                            ),
+                            model_name="small",
+                            requested_device="auto",
+                            resolved_device="cpu",
+                            use_fp16=False,
+                        ),
+                    )
+                )
+
+                result = run_transcribe(
+                    TranscribeRequest(
+                        options=TranscriptionOptions(
+                            files=[Path("interview.mkv")],
+                            output_dir=Path("results"),
+                        ),
+                        summary_json_path=summary_path,
+                    )
+                )
+
+            self.assertEqual(summary_path.resolve(), result.summary_json_path)
+            write_json_mock.assert_called_once()
+            self.assertEqual(summary_path.resolve(), write_json_mock.call_args.args[0])
+            self.assertIsInstance(write_json_mock.call_args.args[1], dict)
+
     @patch("whisper_sift.runtime.dependencies.ensure_transcription_dependencies")
     def test_run_provision_transcription_runtime_bootstraps_dependencies(
         self,
@@ -233,6 +276,63 @@ class ApplicationTests(unittest.TestCase):
             [str(Path("questions/interview_questions.txt"))],
             result.to_dict()["generated_question_files"],
         )
+
+    def test_run_pipeline_can_write_summary_json(self) -> None:
+        from whisper_sift.application.extract_questions import ExtractQuestionsResult
+        from whisper_sift.application.transcribe import TranscribeResult
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            summary_path = workspace / "pipeline_summary.json"
+
+            with patch("whisper_sift.application.pipeline.write_json_file") as write_json_mock, \
+                 patch("whisper_sift.application.pipeline.run_transcribe") as run_transcribe_mock, \
+                 patch("whisper_sift.application.pipeline.run_extract_questions") as run_extract_questions_mock:
+                run_transcribe_mock.return_value = TranscribeResult(
+                    artifacts=(
+                        TranscriptionArtifact(
+                            source_path=Path("interview.mkv"),
+                            document=TranscriptionDocument(text="hello", language="ru"),
+                            outputs=(
+                                TranscriptionOutputFile(
+                                    path=Path("results/interview.txt"),
+                                    output_format="txt",
+                                ),
+                            ),
+                            model_name="small",
+                            requested_device="auto",
+                            resolved_device="cpu",
+                            use_fp16=False,
+                        ),
+                    )
+                )
+                run_extract_questions_mock.return_value = ExtractQuestionsResult(
+                    artifacts=(
+                        QuestionOutputArtifact(
+                            source_path=Path("results/interview.txt"),
+                            text_file=Path("questions/interview_questions.txt"),
+                            json_file=Path("questions/interview_questions.json"),
+                            question_count=2,
+                        ),
+                    )
+                )
+
+                result = run_pipeline(
+                    PipelineRequest(
+                        transcription_options=TranscriptionOptions(
+                            files=[Path("interview.mkv")],
+                            output_dir=Path("results"),
+                            formats=("txt",),
+                        ),
+                        questions_output_dir=Path("questions"),
+                        summary_json_path=summary_path,
+                    )
+                )
+
+            self.assertEqual(summary_path.resolve(), result.summary_json_path)
+            write_json_mock.assert_called_once()
+            self.assertEqual(summary_path.resolve(), write_json_mock.call_args.args[0])
+            self.assertIsInstance(write_json_mock.call_args.args[1], dict)
 
     @patch("whisper_sift.runtime.doctor.collect_doctor_report")
     def test_run_doctor_wraps_report(self, collect_doctor_report_mock) -> None:

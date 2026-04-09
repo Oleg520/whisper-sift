@@ -57,6 +57,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Расшифровать медиафайлы",
     )
     _add_transcription_arguments(transcribe_parser)
+    transcribe_parser.add_argument(
+        "--summary-json",
+        type=Path,
+        default=None,
+        help="Куда сохранить JSON summary по результатам транскрибации.",
+    )
     transcribe_parser.set_defaults(handler=_handle_transcribe)
 
     questions_parser = subparsers.add_parser(
@@ -142,6 +148,12 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         default=DEFAULT_WRITE_QUESTION_JSON,
         help="Сохранить дополнительный JSON-файл со структурированными данными по вопросам.",
+    )
+    pipeline_parser.add_argument(
+        "--summary-json",
+        type=Path,
+        default=None,
+        help="Куда сохранить JSON summary по результатам полного пайплайна.",
     )
     pipeline_parser.add_argument(
         "--no-deduplicate",

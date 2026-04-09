@@ -29,6 +29,7 @@ class CliIntegrationTests(unittest.TestCase):
             workspace = Path(temp_dir)
             media_path = workspace / "interview.mkv"
             output_dir = workspace / "results"
+            summary_path = workspace / "transcribe_summary.json"
             media_path.write_bytes(b"fake media")
 
             result = self._run_cli(
@@ -39,15 +40,20 @@ class CliIntegrationTests(unittest.TestCase):
                 str(output_dir),
                 "--formats",
                 "txt",
+                "--summary-json",
+                str(summary_path),
                 extra_env={FAKE_TRANSCRIPTION_TEXT_ENV: transcript},
             )
 
             self.assertEqual(0, result.returncode, msg=result.stderr or result.stdout)
             output_path = output_dir / "interview.txt"
+            self.assertTrue(summary_path.exists())
             self.assertTrue(output_path.exists())
             self.assertEqual(transcript.strip(), output_path.read_text(encoding="utf-8").strip())
+            self.assertIn('"generated_file_count": 1', summary_path.read_text(encoding="utf-8"))
             self.assertIn("[backend] fixture transcription backend enabled", result.stdout)
             self.assertIn("[done]", result.stdout)
+            self.assertIn("[summary]", result.stdout)
 
     def test_launcher_extract_questions_smoke(self) -> None:
         transcript = (
@@ -140,6 +146,7 @@ class CliIntegrationTests(unittest.TestCase):
             media_path = workspace / "interview.mkv"
             transcript_dir = workspace / "transcripts"
             questions_dir = workspace / "questions"
+            summary_path = workspace / "pipeline_summary.json"
             media_path.write_bytes(b"fake media")
 
             result = self._run_cli(
@@ -154,6 +161,8 @@ class CliIntegrationTests(unittest.TestCase):
                 "--formats",
                 "txt",
                 "--json",
+                "--summary-json",
+                str(summary_path),
                 extra_env={FAKE_TRANSCRIPTION_TEXT_ENV: transcript},
             )
 
@@ -161,6 +170,7 @@ class CliIntegrationTests(unittest.TestCase):
             transcript_path = transcript_dir / "interview.txt"
             questions_path = questions_dir / "interview_questions.txt"
             questions_json_path = questions_dir / "interview_questions.json"
+            self.assertTrue(summary_path.exists())
             self.assertTrue(transcript_path.exists())
             self.assertTrue(questions_path.exists())
             self.assertTrue(questions_json_path.exists())
@@ -172,8 +182,12 @@ class CliIntegrationTests(unittest.TestCase):
                 questions_path.read_text(encoding="utf-8").strip(),
             )
             self.assertIn('"question_count": 2', questions_json_path.read_text(encoding="utf-8"))
+            summary_text = summary_path.read_text(encoding="utf-8")
+            self.assertIn('"generated_question_files"', summary_text)
+            self.assertIn('"question_source_count": 1', summary_text)
             self.assertIn("[done]", result.stdout)
             self.assertIn("[questions]", result.stdout)
+            self.assertIn("[summary]", result.stdout)
 
     def test_module_extract_questions_smoke_with_explicit_interviewer_label(self) -> None:
         transcript = (
