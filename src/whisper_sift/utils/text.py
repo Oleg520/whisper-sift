@@ -93,11 +93,25 @@ def extract_question_candidates(
     interviewer_labels: tuple[str, ...] = (),
 ) -> list[str]:
     questions: list[str] = []
+    explicit_interviewer_labels = _normalize_explicit_speaker_labels(interviewer_labels)
     speaker_turns = _extract_speaker_turns(text, interviewer_labels=interviewer_labels)
     speaker_filter = _resolve_interviewer_labels(
         speaker_turns,
         interviewer_labels=interviewer_labels,
     )
+
+    if explicit_interviewer_labels:
+        if not speaker_turns:
+            raise RuntimeError(
+                "Explicit interviewer labels were provided, but no speaker-labeled "
+                "transcript structure was detected."
+            )
+        if not speaker_filter:
+            available_labels = ", ".join(sorted({turn.label for turn in speaker_turns}))
+            raise RuntimeError(
+                "None of the provided interviewer labels were found in the transcript. "
+                f"Available labels: {available_labels}"
+            )
 
     if speaker_turns and speaker_filter:
         candidate_texts = [
@@ -284,11 +298,7 @@ def _extract_speaker_turns(
     *,
     interviewer_labels: tuple[str, ...],
 ) -> list[SpeakerTurn]:
-    explicit_labels = {
-        normalized
-        for label in interviewer_labels
-        if (normalized := _normalize_speaker_label(label))
-    }
+    explicit_labels = _normalize_explicit_speaker_labels(interviewer_labels)
     lines = text.splitlines()
 
     candidate_labels: list[str] = []
@@ -345,18 +355,14 @@ def _resolve_interviewer_labels(
         return set()
 
     available_labels = {turn.normalized_label for turn in turns}
-    explicit_labels = {
-        normalized
-        for label in interviewer_labels
-        if (normalized := _normalize_speaker_label(label))
-    }
+    explicit_labels = _normalize_explicit_speaker_labels(interviewer_labels)
     if explicit_labels:
         return available_labels & explicit_labels
 
     detected_labels = {
         label
         for label in available_labels
-        if any(keyword in label for keyword in KNOWN_INTERVIEWER_LABELS)
+        if _label_matches_any_keywords(label, KNOWN_INTERVIEWER_LABELS)
     }
     if detected_labels:
         return detected_labels
@@ -364,7 +370,7 @@ def _resolve_interviewer_labels(
     candidate_labels = {
         label
         for label in available_labels
-        if any(keyword in label for keyword in KNOWN_CANDIDATE_LABELS)
+        if _label_matches_any_keywords(label, KNOWN_CANDIDATE_LABELS)
     }
     remaining_labels = available_labels - candidate_labels
     if len(available_labels) == 2 and len(candidate_labels) == 1 and len(remaining_labels) == 1:
@@ -380,13 +386,41 @@ def _normalize_speaker_label(value: str) -> str:
     return normalized
 
 
+def _normalize_explicit_speaker_labels(labels: tuple[str, ...]) -> set[str]:
+    return {
+        normalized
+        for label in labels
+        if (normalized := _normalize_speaker_label(label))
+    }
+
+
+def _label_matches_any_keywords(label: str, keywords: tuple[str, ...]) -> bool:
+    return any(_label_matches_keyword(label, keyword) for keyword in keywords)
+
+
+def _label_matches_keyword(label: str, keyword: str) -> bool:
+    label_tokens = _tokenize_question(label)
+    keyword_tokens = _tokenize_question(keyword)
+    if not label_tokens or not keyword_tokens:
+        return False
+
+    if len(keyword_tokens) == 1:
+        return keyword_tokens[0] in label_tokens
+
+    window_size = len(keyword_tokens)
+    for index in range(len(label_tokens) - window_size + 1):
+        if label_tokens[index : index + window_size] == keyword_tokens:
+            return True
+    return False
+
+
 def _looks_like_known_speaker_label(label: str) -> bool:
     if not label:
         return False
     if KNOWN_SPEAKER_LABEL_RE.match(label):
         return True
-    if any(keyword in label for keyword in KNOWN_INTERVIEWER_LABELS):
+    if _label_matches_any_keywords(label, KNOWN_INTERVIEWER_LABELS):
         return True
-    if any(keyword in label for keyword in KNOWN_CANDIDATE_LABELS):
+    if _label_matches_any_keywords(label, KNOWN_CANDIDATE_LABELS):
         return True
     return False

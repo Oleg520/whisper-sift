@@ -119,7 +119,13 @@ python -m pip install torch openai-whisper imageio-ffmpeg
 
 Сначала приложение пытается использовать системный `ffmpeg`, если он уже доступен в `PATH`.
 
-Если системного бинарника нет, используется `imageio-ffmpeg`, а подготовленный алиас сохраняется в `.tools/ffmpeg/ffmpeg(.exe)` для стабильного запуска Whisper на Windows, Linux и macOS.
+Если системного бинарника нет, используется `imageio-ffmpeg`, а подготовленный алиас сохраняется в пользовательской runtime-директории:
+
+- Windows: `%LOCALAPPDATA%\\whisper-sift\\tools\\ffmpeg\\ffmpeg.exe`
+- Linux: `~/.cache/whisper-sift/tools/ffmpeg/ffmpeg`
+- macOS: `~/Library/Caches/whisper-sift/tools/ffmpeg/ffmpeg`
+
+При необходимости runtime-директорию можно переопределить через переменную окружения `WHISPER_SIFT_RUNTIME_DIR`.
 
 ## Тесты
 

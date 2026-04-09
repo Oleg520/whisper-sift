@@ -23,6 +23,13 @@ def ensure_ffmpeg_on_path() -> Path:
     if system_ffmpeg is not None:
         return system_ffmpeg
 
+    bundled_ffmpeg = _bundled_ffmpeg_alias()
+    if bundled_ffmpeg is not None:
+        if os.name != "nt":
+            _ensure_executable(bundled_ffmpeg)
+        _prepend_to_path(bundled_ffmpeg.parent)
+        return bundled_ffmpeg
+
     ffmpeg_source = _resolve_imageio_ffmpeg()
     if ffmpeg_source is None:
         raise RuntimeError(
@@ -38,10 +45,7 @@ def ensure_ffmpeg_on_path() -> Path:
         shutil.copy2(ffmpeg_source, ffmpeg_alias)
     if os.name != "nt":
         _ensure_executable(ffmpeg_alias)
-
-    current_path = os.environ.get("PATH", "")
-    if str(ffmpeg_dir) not in current_path.split(os.pathsep):
-        os.environ["PATH"] = str(ffmpeg_dir) + os.pathsep + current_path
+    _prepend_to_path(ffmpeg_dir)
 
     return ffmpeg_alias
 
@@ -112,6 +116,13 @@ def _bundled_ffmpeg_alias() -> Path | None:
 
 def _ffmpeg_alias_name() -> str:
     return "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+
+
+def _prepend_to_path(directory: Path) -> None:
+    current_path = os.environ.get("PATH", "")
+    entries = current_path.split(os.pathsep) if current_path else []
+    if str(directory) not in entries:
+        os.environ["PATH"] = str(directory) + os.pathsep + current_path if current_path else str(directory)
 
 
 def _needs_refresh(target: Path, source: Path) -> bool:

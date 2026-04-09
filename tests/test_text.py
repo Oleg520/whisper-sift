@@ -239,6 +239,36 @@ class TextUtilityTests(unittest.TestCase):
             questions,
         )
 
+    def test_extract_question_candidates_uses_remaining_speaker_when_candidate_is_detected(self) -> None:
+        transcript = (
+            "Team Lead: Расскажите о вашем опыте работы\n"
+            "Candidate: Я работаю в backend уже пять лет.\n"
+            "Team Lead: Какие технологии вы использовали на последнем проекте?\n"
+            "Candidate: Python и FastAPI.\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Расскажите о вашем опыте работы?",
+                "Какие технологии вы использовали на последнем проекте?",
+            ],
+            questions,
+        )
+
+    def test_extract_question_candidates_fails_for_unknown_explicit_speaker_label(self) -> None:
+        transcript = (
+            "SPEAKER_00: Расскажите о вашем опыте работы\n"
+            "SPEAKER_01: Я работаю в backend уже пять лет.\n"
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "None of the provided interviewer labels"):
+            extract_question_candidates(
+                transcript,
+                interviewer_labels=("SPEAKER_42",),
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

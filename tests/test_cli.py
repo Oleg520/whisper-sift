@@ -14,6 +14,8 @@ if str(SRC_DIR) not in sys.path:
 
 from whisper_sift.cli import (
     EXIT_FILE_NOT_FOUND,
+    EXIT_USAGE_ERROR,
+    _normalize_argv,
     _normalize_output_formats,
     _normalize_pipeline_formats,
     main,
@@ -32,6 +34,19 @@ class CliTests(unittest.TestCase):
         self.assertEqual(("srt", "txt"), normalized)
         self.assertTrue(txt_added)
 
+    def test_normalize_argv_infers_transcribe_for_file_like_target(self) -> None:
+        normalized = _normalize_argv(["interview.mkv", "--output-dir", "results"])
+
+        self.assertEqual(
+            ["transcribe", "interview.mkv", "--output-dir", "results"],
+            normalized,
+        )
+
+    def test_normalize_argv_keeps_unknown_command_like_value(self) -> None:
+        normalized = _normalize_argv(["doctro"])
+
+        self.assertEqual(["doctro"], normalized)
+
     def test_main_returns_friendly_missing_file_error(self) -> None:
         missing_file = PROJECT_ROOT / "missing_transcript.txt"
         stderr = io.StringIO()
@@ -42,6 +57,15 @@ class CliTests(unittest.TestCase):
         self.assertEqual(EXIT_FILE_NOT_FOUND, exit_code)
         self.assertIn("[error]", stderr.getvalue())
         self.assertIn("Transcript file not found", stderr.getvalue())
+
+    def test_main_returns_usage_error_for_unknown_command_typo(self) -> None:
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(["doctro"])
+
+        self.assertEqual(EXIT_USAGE_ERROR, exit_code)
+        self.assertIn("invalid choice", stderr.getvalue())
 
 
 if __name__ == "__main__":

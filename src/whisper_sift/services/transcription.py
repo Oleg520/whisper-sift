@@ -12,6 +12,11 @@ from whisper_sift.infrastructure.ffmpeg import ensure_ffmpeg_on_path
 
 
 def transcribe_files(options: TranscriptionOptions) -> list[Path]:
+    resolved_sources = [source.resolve() for source in options.files]
+    for resolved_source in resolved_sources:
+        if not resolved_source.exists():
+            raise FileNotFoundError(f"Input file not found: {resolved_source}")
+
     output_dir = options.output_dir.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -27,11 +32,7 @@ def transcribe_files(options: TranscriptionOptions) -> list[Path]:
     model = whisper.load_model(options.model, device=resolved_device)
     generated_files: list[Path] = []
 
-    for source in options.files:
-        resolved_source = source.resolve()
-        if not resolved_source.exists():
-            raise FileNotFoundError(f"Input file not found: {resolved_source}")
-
+    for resolved_source in resolved_sources:
         print(f"[start] {resolved_source.name}")
         result = model.transcribe(
             str(resolved_source),

@@ -44,6 +44,8 @@ class DoctorTests(unittest.TestCase):
         report = DoctorReport(
             python_executable=sys.executable,
             python_version="3.11.0",
+            package_root=PROJECT_ROOT / "src" / "whisper_sift",
+            runtime_root=Path("/tmp/whisper-sift"),
             project_root=PROJECT_ROOT,
             platform_name="TestOS",
             dependencies=(

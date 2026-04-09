@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from whisper_sift.infrastructure.ffmpeg import FfmpegProbe, probe_ffmpeg_environment
-from whisper_sift.paths import PROJECT_ROOT
+from whisper_sift.paths import PACKAGE_ROOT, PROJECT_ROOT, RUNTIME_ROOT
 from whisper_sift.runtime.dependencies import (
     TRANSCRIPTION_DEPENDENCIES,
     ensure_transcription_dependencies,
@@ -35,7 +35,9 @@ class TorchStatus:
 class DoctorReport:
     python_executable: str
     python_version: str
-    project_root: Path
+    package_root: Path
+    runtime_root: Path
+    project_root: Path | None
     platform_name: str
     dependencies: tuple[DependencyStatus, ...]
     torch: TorchStatus
@@ -73,6 +75,8 @@ def collect_doctor_report(*, install_missing: bool = False) -> DoctorReport:
     return DoctorReport(
         python_executable=sys.executable,
         python_version=platform.python_version(),
+        package_root=PACKAGE_ROOT,
+        runtime_root=RUNTIME_ROOT,
         project_root=PROJECT_ROOT,
         platform_name=platform.platform(),
         dependencies=dependencies,
@@ -83,7 +87,10 @@ def collect_doctor_report(*, install_missing: bool = False) -> DoctorReport:
 
 def print_doctor_report(report: DoctorReport) -> None:
     print(f"[python]   {report.python_version} ({report.python_executable})")
-    print(f"[project]  {report.project_root}")
+    if report.project_root is not None:
+        print(f"[project]  {report.project_root}")
+    print(f"[package]  {report.package_root}")
+    print(f"[runtime]  {report.runtime_root}")
     print(f"[platform] {report.platform_name}")
 
     for dependency in report.dependencies:

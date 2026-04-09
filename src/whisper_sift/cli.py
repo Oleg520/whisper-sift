@@ -182,7 +182,19 @@ def _normalize_argv(argv: Sequence[str]) -> list[str]:
     if first_arg in COMMANDS or first_arg.startswith("-"):
         return normalized
 
-    return ["transcribe", *normalized]
+    if _looks_like_transcription_target(first_arg):
+        return ["transcribe", *normalized]
+
+    return normalized
+
+
+def _looks_like_transcription_target(value: str) -> bool:
+    candidate = Path(value)
+    if candidate.exists():
+        return True
+    if candidate.suffix:
+        return True
+    return "\\" in value or "/" in value
 
 
 def _handle_transcribe(args: argparse.Namespace) -> int:
