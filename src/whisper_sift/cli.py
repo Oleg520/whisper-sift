@@ -6,7 +6,21 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from whisper_sift.config import QuestionExtractionOptions, TranscriptionOptions
+from whisper_sift.config import (
+    AUTO_DETECT_LANGUAGE,
+    DEFAULT_MAX_QUESTION_LENGTH,
+    DEFAULT_MIN_QUESTION_LENGTH,
+    DEFAULT_OUTPUT_DIR,
+    DEFAULT_OUTPUT_FORMATS,
+    DEFAULT_QUESTION_SUFFIX,
+    DEFAULT_TRANSCRIPTION_DEVICE,
+    DEFAULT_TRANSCRIPTION_LANGUAGE,
+    DEFAULT_TRANSCRIPTION_MODEL,
+    QuestionExtractionOptions,
+    TranscriptionOptions,
+    normalize_transcription_language,
+)
+from whisper_sift.runtime.reporting import ConsoleReporter
 
 
 EXIT_SUCCESS = 0
@@ -17,6 +31,7 @@ EXIT_DEPENDENCY_ERROR = 4
 EXIT_INTERRUPTED = 130
 
 COMMANDS = {"transcribe", "extract-questions", "pipeline", "doctor"}
+DEFAULT_OUTPUT_FORMATS_TEXT = " ".join(DEFAULT_OUTPUT_FORMATS)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -67,7 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pipeline_parser.add_argument(
         "--suffix",
-        default="_questions.txt",
+        default=DEFAULT_QUESTION_SUFFIX,
         help="Суффикс имени файлов с вопросами.",
     )
     pipeline_parser.add_argument(
@@ -87,13 +102,13 @@ def build_parser() -> argparse.ArgumentParser:
     pipeline_parser.add_argument(
         "--min-length",
         type=int,
-        default=10,
+        default=DEFAULT_MIN_QUESTION_LENGTH,
         help="Минимальная длина вопроса.",
     )
     pipeline_parser.add_argument(
         "--max-length",
         type=int,
-        default=240,
+        default=DEFAULT_MAX_QUESTION_LENGTH,
         help="Максимальная длина вопроса.",
     )
     pipeline_parser.set_defaults(handler=_handle_pipeline)
@@ -105,30 +120,33 @@ def _add_transcription_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("files", nargs="+", type=Path, help="Медиафайлы для расшифровки.")
     parser.add_argument(
         "--model",
-        default="small",
+        default=DEFAULT_TRANSCRIPTION_MODEL,
         help="Название модели Whisper, например tiny/base/small/medium/large.",
     )
     parser.add_argument(
         "--language",
-        default="ru",
-        help="Код языка. Укажите auto для автоопределения.",
+        default=DEFAULT_TRANSCRIPTION_LANGUAGE,
+        help=f"Код языка. Укажите {AUTO_DETECT_LANGUAGE} для автоопределения.",
     )
     parser.add_argument(
         "--device",
-        default="auto",
-        help="Устройство для запуска модели: auto/cpu/cuda/mps. По умолчанию auto.",
+        default=DEFAULT_TRANSCRIPTION_DEVICE,
+        help=(
+            "Устройство для запуска модели: auto/cpu/cuda/mps. "
+            f"По умолчанию {DEFAULT_TRANSCRIPTION_DEVICE}."
+        ),
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("."),
+        default=DEFAULT_OUTPUT_DIR,
         help="Папка для результатов расшифровки.",
     )
     parser.add_argument(
         "--formats",
         nargs="+",
-        default=["txt", "srt"],
-        help="Выходные форматы. По умолчанию: txt srt.",
+        default=list(DEFAULT_OUTPUT_FORMATS),
+        help=f"Выходные форматы. По умолчанию: {DEFAULT_OUTPUT_FORMATS_TEXT}.",
     )
 
 
@@ -142,7 +160,7 @@ def _add_question_arguments(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--suffix",
-        default="_questions.txt",
+        default=DEFAULT_QUESTION_SUFFIX,
         help="Суффикс выходного файла.",
     )
     parser.add_argument(
@@ -162,13 +180,13 @@ def _add_question_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--min-length",
         type=int,
-        default=10,
+        default=DEFAULT_MIN_QUESTION_LENGTH,
         help="Минимальная длина вопроса.",
     )
     parser.add_argument(
         "--max-length",
         type=int,
-        default=240,
+        default=DEFAULT_MAX_QUESTION_LENGTH,
         help="Максимальная длина вопроса.",
     )
 
@@ -198,27 +216,29 @@ def _looks_like_transcription_target(value: str) -> bool:
 
 
 def _handle_transcribe(args: argparse.Namespace) -> int:
-    from whisper_sift.runtime.dependencies import ensure_transcription_dependencies
+    from whisper_sift.application.transcribe import TranscribeRequest, run_transcribe
 
-    ensure_transcription_dependencies()
-    from whisper_sift.services.transcription import transcribe_files
-
+    reporter = ConsoleReporter()
     normalized_formats = _normalize_output_formats(args.formats)
     options = TranscriptionOptions(
         files=args.files,
         output_dir=args.output_dir.resolve(),
         model=args.model,
-        language=None if args.language.lower() == "auto" else args.language,
+        language=normalize_transcription_language(args.language),
         device=args.device,
         formats=normalized_formats,
     )
-    transcribe_files(options)
+    run_transcribe(TranscribeRequest(options=options, reporter=reporter))
     return EXIT_SUCCESS
 
 
 def _handle_extract_questions(args: argparse.Namespace) -> int:
-    from whisper_sift.services.questions import extract_questions_from_files
+    from whisper_sift.application.extract_questions import (
+        ExtractQuestionsRequest,
+        run_extract_questions,
+    )
 
+    reporter = ConsoleReporter()
     options = QuestionExtractionOptions(
         files=args.files,
         output_dir=args.output_dir.resolve() if args.output_dir else None,
@@ -228,17 +248,16 @@ def _handle_extract_questions(args: argparse.Namespace) -> int:
         max_length=args.max_length,
         interviewer_labels=tuple(args.interviewer_label),
     )
-    extract_questions_from_files(options)
+    run_extract_questions(
+        ExtractQuestionsRequest(options=options, reporter=reporter)
+    )
     return EXIT_SUCCESS
 
 
 def _handle_pipeline(args: argparse.Namespace) -> int:
-    from whisper_sift.runtime.dependencies import ensure_transcription_dependencies
+    from whisper_sift.application.pipeline import PipelineRequest, run_pipeline
 
-    ensure_transcription_dependencies()
-    from whisper_sift.services.questions import extract_questions_from_files
-    from whisper_sift.services.transcription import transcribe_files
-
+    reporter = ConsoleReporter()
     transcript_dir = args.output_dir.resolve()
     question_dir = args.questions_dir.resolve() if args.questions_dir else transcript_dir
     normalized_formats, txt_added = _normalize_pipeline_formats(args.formats)
@@ -253,30 +272,30 @@ def _handle_pipeline(args: argparse.Namespace) -> int:
         files=args.files,
         output_dir=transcript_dir,
         model=args.model,
-        language=None if args.language.lower() == "auto" else args.language,
+        language=normalize_transcription_language(args.language),
         device=args.device,
         formats=normalized_formats,
     )
-    generated_files = transcribe_files(transcription_options)
-
-    transcript_files = [path for path in generated_files if path.suffix.lower() == ".txt"]
-    question_options = QuestionExtractionOptions(
-        files=transcript_files,
-        output_dir=question_dir,
-        suffix=args.suffix,
-        deduplicate=not args.no_deduplicate,
-        min_length=args.min_length,
-        max_length=args.max_length,
-        interviewer_labels=tuple(args.interviewer_label),
+    run_pipeline(
+        PipelineRequest(
+            transcription_options=transcription_options,
+            questions_output_dir=question_dir,
+            suffix=args.suffix,
+            deduplicate=not args.no_deduplicate,
+            min_length=args.min_length,
+            max_length=args.max_length,
+            interviewer_labels=tuple(args.interviewer_label),
+            reporter=reporter,
+        )
     )
-    extract_questions_from_files(question_options)
     return EXIT_SUCCESS
 
 
 def _handle_doctor(args: argparse.Namespace) -> int:
-    from whisper_sift.runtime.doctor import collect_doctor_report, print_doctor_report
+    from whisper_sift.application.doctor import DoctorRequest, run_doctor
+    from whisper_sift.runtime.doctor import print_doctor_report
 
-    report = collect_doctor_report(install_missing=args.install_missing)
+    report = run_doctor(DoctorRequest(install_missing=args.install_missing)).report
     print_doctor_report(report)
     return EXIT_SUCCESS if report.is_ready else EXIT_RUNTIME_ERROR
 

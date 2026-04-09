@@ -1,39 +1,41 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import torch
 import whisper
-from whisper.utils import get_writer
 
 from whisper_sift.config import TranscriptionOptions
 from whisper_sift.infrastructure.ffmpeg import ensure_ffmpeg_on_path
+from whisper_sift.infrastructure.filesystem import ensure_existing_file, ensure_output_dir, write_whisper_outputs
+from whisper_sift.runtime.reporting import ProgressReporter, report_progress
 
 
-def transcribe_files(options: TranscriptionOptions) -> list[Path]:
-    resolved_sources = [source.resolve() for source in options.files]
-    for resolved_source in resolved_sources:
-        if not resolved_source.exists():
-            raise FileNotFoundError(f"Input file not found: {resolved_source}")
-
-    output_dir = options.output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+def transcribe_files(
+    options: TranscriptionOptions,
+    *,
+    reporter: ProgressReporter | None = None,
+) -> list[Path]:
+    resolved_sources = [
+        ensure_existing_file(source, error_prefix="Input file not found")
+        for source in options.files
+    ]
+    output_dir = ensure_output_dir(options.output_dir)
 
     ffmpeg_exe = ensure_ffmpeg_on_path()
-    resolved_device = _resolve_device(options.device)
+    resolved_device = _resolve_device(options.device, reporter=reporter)
     use_fp16 = resolved_device == "cuda"
 
-    print(f"[ffmpeg]  {ffmpeg_exe}")
-    print(f"[model]   {options.model}")
-    print(f"[device]  requested={options.device} resolved={resolved_device}")
-    print(f"[fp16]    {use_fp16}")
+    report_progress(reporter, f"[ffmpeg]  {ffmpeg_exe}")
+    report_progress(reporter, f"[model]   {options.model}")
+    report_progress(reporter, f"[device]  requested={options.device} resolved={resolved_device}")
+    report_progress(reporter, f"[fp16]    {use_fp16}")
 
     model = whisper.load_model(options.model, device=resolved_device)
     generated_files: list[Path] = []
 
     for resolved_source in resolved_sources:
-        print(f"[start] {resolved_source.name}")
+        report_progress(reporter, f"[start] {resolved_source.name}")
         result = model.transcribe(
             str(resolved_source),
             task="transcribe",
@@ -43,19 +45,23 @@ def transcribe_files(options: TranscriptionOptions) -> list[Path]:
             temperature=0,
         )
         generated_files.extend(
-            _write_outputs(
+            write_whisper_outputs(
                 result=result,
                 source=resolved_source,
                 output_dir=output_dir,
                 formats=options.formats,
             )
         )
-        print(f"[done]  {resolved_source.name}")
+        report_progress(reporter, f"[done]  {resolved_source.name}")
 
     return generated_files
 
 
-def _resolve_device(requested_device: str) -> str:
+def _resolve_device(
+    requested_device: str,
+    *,
+    reporter: ProgressReporter | None = None,
+) -> str:
     normalized = requested_device.strip().lower()
 
     if normalized == "auto":
@@ -68,38 +74,17 @@ def _resolve_device(requested_device: str) -> str:
     if normalized == "cuda":
         if torch.cuda.is_available():
             return "cuda"
-        print("[device]  CUDA requested, but unavailable. Falling back to cpu.")
+        report_progress(reporter, "[device]  CUDA requested, but unavailable. Falling back to cpu.")
         return "cpu"
 
     if normalized == "mps":
         if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             return "mps"
-        print("[device]  MPS requested, but unavailable. Falling back to cpu.")
+        report_progress(reporter, "[device]  MPS requested, but unavailable. Falling back to cpu.")
         return "cpu"
 
     if normalized == "cpu":
         return "cpu"
 
-    print(f"[device]  Unknown device '{requested_device}'. Falling back to cpu.")
+    report_progress(reporter, f"[device]  Unknown device '{requested_device}'. Falling back to cpu.")
     return "cpu"
-
-
-def _write_outputs(
-    result: dict[str, Any],
-    source: Path,
-    output_dir: Path,
-    formats: tuple[str, ...],
-) -> list[Path]:
-    writer_options = {
-        "highlight_words": False,
-        "max_line_count": None,
-        "max_line_width": None,
-    }
-    generated_files: list[Path] = []
-
-    for output_format in formats:
-        writer = get_writer(output_format, str(output_dir))
-        writer(result, str(source), writer_options)
-        generated_files.append(output_dir / f"{source.stem}.{output_format}")
-
-    return generated_files

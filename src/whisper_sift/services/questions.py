@@ -3,41 +3,49 @@ from __future__ import annotations
 from pathlib import Path
 
 from whisper_sift.config import QuestionExtractionOptions
-from whisper_sift.utils.text import extract_question_candidates
+from whisper_sift.domain.extraction import extract_questions
+from whisper_sift.infrastructure.filesystem import (
+    build_question_output_path,
+    ensure_existing_file,
+    read_text_file,
+    write_text_file,
+)
+from whisper_sift.runtime.reporting import ProgressReporter, report_progress
 
 
-def extract_questions_from_files(options: QuestionExtractionOptions) -> list[Path]:
+def extract_questions_from_files(
+    options: QuestionExtractionOptions,
+    *,
+    reporter: ProgressReporter | None = None,
+) -> list[Path]:
     generated_files: list[Path] = []
 
     for source in options.files:
-        resolved_source = source.resolve()
-        if not resolved_source.exists():
-            raise FileNotFoundError(f"Transcript file not found: {resolved_source}")
+        resolved_source = ensure_existing_file(
+            source,
+            error_prefix="Transcript file not found",
+        )
 
-        questions = extract_question_candidates(
-            resolved_source.read_text(encoding="utf-8"),
+        extraction = extract_questions(
+            read_text_file(resolved_source),
             deduplicate=options.deduplicate,
             min_length=options.min_length,
             max_length=options.max_length,
             interviewer_labels=options.interviewer_labels,
+            source_name=resolved_source.name,
         )
-        output_path = _build_output_path(
+        output_path = build_question_output_path(
             source=resolved_source,
             output_dir=options.output_dir,
             suffix=options.suffix,
         )
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text("\n".join(questions), encoding="utf-8")
+        write_text_file(output_path, "\n".join(extraction.question_texts))
 
-        print(
+        report_progress(
+            reporter,
             f"[questions] {resolved_source.name} -> {output_path.name} "
-            f"({len(questions)} items)"
+            f"({len(extraction.questions)} items)",
         )
         generated_files.append(output_path)
 
     return generated_files
-
-
-def _build_output_path(source: Path, output_dir: Path | None, suffix: str) -> Path:
-    target_dir = output_dir.resolve() if output_dir else source.parent
-    return target_dir / f"{source.stem}{suffix}"

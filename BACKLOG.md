@@ -3,6 +3,7 @@
 Текущий backlog проекта с приоритетами и чекбоксами для отслеживания прогресса.
 
 Стратегическое направление проекта вынесено в [ROADMAP.md](./ROADMAP.md).
+Архитектурный ориентир v2 описан в [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 Статусы:
 
@@ -10,7 +11,7 @@
 - `[-]` — в работе
 - `[x]` — завершено
 
-Последнее обновление: 2026-04-08
+Последнее обновление: 2026-04-09
 
 ## P0 — Критично для надежности
 
@@ -40,10 +41,25 @@
 - [x] Добавить команду `doctor` или `bootstrap`
   Появилась команда `doctor`, которая проверяет зависимости, `ffmpeg`, Python-окружение и доступность `cuda/mps`, а также умеет пробовать доустановить missing runtime-зависимости.
 
-## P2 — Дальнейшее развитие
+## P2 — Архитектура v2 и масштабируемость
 
-- [ ] Вынести runtime-артефакты из корня репозитория
-  Временные файлы и служебные бинарники лучше хранить в cache-директории пользователя, а не в рабочем дереве проекта.
+- [x] Вынести runtime-артефакты из корня репозитория
+  Runtime-артефакты и `ffmpeg`-алиасы теперь живут в пользовательской cache-директории, а путь можно переопределить через `WHISPER_SIFT_RUNTIME_DIR`.
+
+- [x] Выделить application layer для use cases
+  В проекте появился слой `application/`, а orchestration `transcribe`, `extract-questions`, `pipeline` и `doctor` вынесена из CLI в отдельные use case-модули с request/result-объектами.
+
+- [x] Ввести структурированную доменную модель transcript/question extraction
+  В проекте появился слой `domain/` с отдельными сущностями для transcript artifacts, speaker turns, transcript slices, question candidates и extraction results.
+
+- [x] Разделить доменную логику и side effects
+  Extraction-логика вынесена в `domain/`, сервисы больше не печатают напрямую в stdout, а файловые операции и запись артефактов идут через infrastructure adapters и reporter hooks.
+
+- [x] Централизовать configuration и defaults
+  Значения по умолчанию для CLI, pipeline и extraction собраны в `config.py`, а основные слои используют единый набор defaults без дублирования.
+
+- [-] Добавить integration smoke tests на CLI и полный pipeline
+  Уже есть subprocess smoke tests для launcher и `python -m whisper_sift` на реальном `extract-questions` сценарии. Следующий шаг — покрыть транскрибационный путь и полный pipeline без тяжелой Whisper-загрузки.
 
 - [ ] Добавить инженерную обвязку
   Подключить `pytest`, `ruff`, CI workflow и базовые автоматические проверки.
@@ -55,8 +71,7 @@
 
 - [ ] P1-2 Улучшить эвристику извлечения вопросов
 - [ ] P1-3 Добавить `json`-вывод
-- [ ] P2-1 Вынести runtime-артефакты из корня репозитория
-- [ ] P2-2 Добавить инженерную обвязку: `ruff`, CI и автоматические проверки
+- [-] P2-6 Добавить integration smoke tests на CLI и полный pipeline
 
 ## Идеи на потом
 

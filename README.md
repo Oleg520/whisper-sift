@@ -3,6 +3,7 @@
 CLI-инструмент для расшифровки интервью через Whisper и извлечения вопросов интервьюеров из готовых transcript-файлов.
 
 План развития проекта: [ROADMAP.md](./ROADMAP.md)  
+Архитектурный ориентир: [ARCHITECTURE.md](./ARCHITECTURE.md)  
 Трекер задач: [BACKLOG.md](./BACKLOG.md)
 
 ## Возможности
@@ -129,7 +130,7 @@ python -m pip install torch openai-whisper imageio-ffmpeg
 
 ## Тесты
 
-Python-тесты:
+Python-тесты, включая unit coverage и CLI smoke tests для `transcribe_whisper.py` и `python -m whisper_sift`:
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -138,6 +139,8 @@ python -m unittest discover -s tests -v
 ## Как устроен проект
 
 - `src/whisper_sift` — основное Python-приложение и CLI
+- `src/whisper_sift/application` — use cases и orchestration сценариев
+- `src/whisper_sift/domain` — transcript/question model и чистая extraction-логика
 - `tests` — Python-тесты
 - `transcribe_whisper.py` — launcher для прямого запуска без установки пакета
 

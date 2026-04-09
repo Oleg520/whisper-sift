@@ -18,11 +18,34 @@ from whisper_sift.cli import (
     _normalize_argv,
     _normalize_output_formats,
     _normalize_pipeline_formats,
+    build_parser,
     main,
+)
+from whisper_sift.config import (
+    DEFAULT_MAX_QUESTION_LENGTH,
+    DEFAULT_MIN_QUESTION_LENGTH,
+    DEFAULT_OUTPUT_FORMATS,
+    DEFAULT_QUESTION_SUFFIX,
+    DEFAULT_TRANSCRIPTION_DEVICE,
+    DEFAULT_TRANSCRIPTION_LANGUAGE,
+    DEFAULT_TRANSCRIPTION_MODEL,
 )
 
 
 class CliTests(unittest.TestCase):
+    def test_parser_uses_centralized_defaults(self) -> None:
+        parser = build_parser()
+        transcribe_args = parser.parse_args(["transcribe", "sample.mkv"])
+        extract_args = parser.parse_args(["extract-questions", "sample.txt"])
+
+        self.assertEqual(DEFAULT_TRANSCRIPTION_MODEL, transcribe_args.model)
+        self.assertEqual(DEFAULT_TRANSCRIPTION_LANGUAGE, transcribe_args.language)
+        self.assertEqual(DEFAULT_TRANSCRIPTION_DEVICE, transcribe_args.device)
+        self.assertEqual(list(DEFAULT_OUTPUT_FORMATS), transcribe_args.formats)
+        self.assertEqual(DEFAULT_QUESTION_SUFFIX, extract_args.suffix)
+        self.assertEqual(DEFAULT_MIN_QUESTION_LENGTH, extract_args.min_length)
+        self.assertEqual(DEFAULT_MAX_QUESTION_LENGTH, extract_args.max_length)
+
     def test_normalize_output_formats_deduplicates_and_lowercases(self) -> None:
         normalized = _normalize_output_formats(["TXT", "srt", "txt", " SRT "])
 
