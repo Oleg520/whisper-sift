@@ -186,6 +186,51 @@ class TextUtilityTests(unittest.TestCase):
             questions,
         )
 
+    def test_extract_question_candidates_filters_low_signal_followups(self) -> None:
+        transcript = (
+            "Или знаешь, что это такое?\n"
+            "Ну, а что у нас?\n"
+            "Что у нас еще там есть?\n"
+            "А какие еще эти?\n"
+            "Не трогаем пока паттерные микросервисы?\n"
+            "Какие группы паттерных проектирований ты знаешь?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Какие группы паттерных проектирований ты знаешь?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_answer_like_explanation_with_question_mark(self) -> None:
+        transcript = (
+            "То есть адаптер, он как бы берет один интерфейс и адаптирует его к другому, условно, да?\n"
+            "А чем декоратор отличается от адаптера?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["А чем декоратор отличается от адаптера?"],
+            questions,
+        )
+
+    def test_extract_question_candidates_stops_after_invitation_for_candidate_questions(self) -> None:
+        transcript = (
+            "Какие технологии вы использовали на последнем проекте?\n"
+            "Тогда, наверное, может, у вас какие-то вопросы, мы будем ответить.\n"
+            "А в чем разница с CICD?\n"
+            "У вас много поточка вообще в целом как используется?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            ["Какие технологии вы использовали на последнем проекте?"],
+            questions,
+        )
+
     def test_extract_question_candidates_fuzzy_deduplicates_similar_questions(self) -> None:
         transcript = (
             "Какие технологии вы использовали на последнем проекте?\n"

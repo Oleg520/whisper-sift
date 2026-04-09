@@ -92,7 +92,7 @@ python transcribe_whisper.py pipeline interview_part1.mkv interview_part2.mkv --
 
 ## Диагностика
 
-Проверить окружение, зависимости, `ffmpeg`, Python и доступность `cuda/mps`:
+Проверить окружение, зависимости, `ffmpeg`, Python, `nvidia-smi` и доступность `cuda/mps`:
 
 ```powershell
 python transcribe_whisper.py doctor
@@ -112,11 +112,25 @@ whisper-sift doctor
 
 ## Автоустановка зависимостей
 
-Для команд `transcribe` и `pipeline` приложение проверяет наличие runtime-зависимостей. Если чего-то не хватает, запускается:
+Для команд `transcribe` и `pipeline` приложение проверяет наличие runtime-зависимостей.
+
+Если `torch` еще не установлен, bootstrap выбирает wheel по железу:
+
+- при обнаружении `nvidia-smi` ставится CUDA-сборка `torch` через официальный PyTorch CUDA index
+- если NVIDIA GPU не обнаружена, ставится CPU-сборка `torch`
+
+Остальные зависимости ставятся через обычный `pip install`.
+
+Если `torch` уже установлен, приложение не переустанавливает его молча. В этом случае `doctor` покажет, готово ли текущее окружение к CUDA, и при необходимости подскажет рекомендуемую команду.
+
+Например, на машине с NVIDIA GPU bootstrap будет выглядеть так:
 
 ```powershell
-python -m pip install torch openai-whisper imageio-ffmpeg
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+python -m pip install openai-whisper imageio-ffmpeg
 ```
+
+На CPU-only машине первый шаг будет использовать PyTorch CPU index вместо CUDA.
 
 Если системный `ffmpeg` уже доступен через `PATH`, `imageio-ffmpeg` не является обязательным для bootstrap-проверки.
 

@@ -11,7 +11,14 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from whisper_sift.runtime.dependencies import collect_missing_transcription_packages
+from whisper_sift.runtime.dependencies import (
+    TORCH_CPU_INDEX_URL,
+    TORCH_CUDA_INDEX_URL,
+    build_dependency_install_commands,
+    build_torch_install_command,
+    collect_missing_transcription_packages,
+)
+from whisper_sift.runtime.hardware import NvidiaHardwareStatus
 
 
 class RuntimeDependencyTests(unittest.TestCase):
@@ -62,6 +69,61 @@ class RuntimeDependencyTests(unittest.TestCase):
         missing_packages = collect_missing_transcription_packages()
 
         self.assertEqual(["imageio-ffmpeg"], missing_packages)
+
+    @patch("whisper_sift.runtime.dependencies.probe_nvidia_hardware")
+    def test_missing_torch_prefers_cuda_wheel_when_nvidia_is_detected(
+        self,
+        probe_nvidia_hardware_mock,
+    ) -> None:
+        probe_nvidia_hardware_mock.return_value = NvidiaHardwareStatus(
+            available=True,
+            executable="nvidia-smi",
+            gpu_names=("NVIDIA RTX",),
+        )
+
+        commands = build_dependency_install_commands(["torch", "openai-whisper"])
+
+        self.assertEqual(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "torch",
+                "--index-url",
+                TORCH_CUDA_INDEX_URL,
+            ],
+            commands[0],
+        )
+        self.assertEqual(
+            [sys.executable, "-m", "pip", "install", "openai-whisper"],
+            commands[1],
+        )
+
+    @patch("whisper_sift.runtime.dependencies.probe_nvidia_hardware")
+    def test_missing_torch_falls_back_to_cpu_wheel_without_nvidia(
+        self,
+        probe_nvidia_hardware_mock,
+    ) -> None:
+        probe_nvidia_hardware_mock.return_value = NvidiaHardwareStatus(
+            available=False,
+            executable=None,
+        )
+
+        command = build_torch_install_command()
+
+        self.assertEqual(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                "torch",
+                "--index-url",
+                TORCH_CPU_INDEX_URL,
+            ],
+            command,
+        )
 
 
 if __name__ == "__main__":

@@ -24,6 +24,16 @@ QUESTION_SPLIT_RE = re.compile(r"(?<=[?.!])\s+|\n+")
 GENERIC_SPEAKER_LINE_RE = re.compile(
     r"^\s*(?:\[(?P<bracket>[^\]]{1,40})\]|(?P<plain>[^:\-\n]{1,40}))\s*[:\-]\s*(?P<body>.*)$"
 )
+CANDIDATE_QUESTION_INVITE_RE = re.compile(
+    r"(?:"
+    r"есть\s+ли\s+у\s+вас\s+вопросы|"
+    r"у\s+вас\s+есть\s+вопросы|"
+    r"у\s+вас\s+какие[- ]?то\s+вопросы|"
+    r"может(?:,\s*|\s+)у\s+вас\s+какие[- ]?то\s+вопросы|"
+    r"может(?:,\s*|\s+)есть\s+какие[- ]?то\s+вопросы"
+    r")",
+    re.IGNORECASE,
+)
 QUESTION_LIKE_RE = re.compile(
     r"^(?:"
     r"что(?!-)|как(?!-)|почему|зачем|когда(?!-)|где(?!-)|кто(?!-)|сколько|"
@@ -41,20 +51,39 @@ ANSWER_LIKE_RE = re.compile(
     r"^(?:"
     r"да|нет|ага|ну|смотрите|слушайте|хорошо|конечно|скорее|получается|"
     r"наверное|в целом|на самом деле|если честно|честно говоря|не помню|"
+    r"то есть|мне кажется|я думаю|я бы|можно,? конечно|"
     r"я|мы|мне|нам|у нас|в нашей команде|в компании|на проекте|на последнем проекте|"
     r"на прошлом проекте|обычно я|обычно мы|это|было|есть|"
     r"actually|well|yes|no|i|we|our team|in our team|on the last project"
     r")\b",
     re.IGNORECASE,
 )
+STRONG_ANSWER_LIKE_RE = re.compile(
+    r"^(?:"
+    r"то есть|мне кажется|я думаю|я бы|можно,? конечно|"
+    r"что касается|если у нас|нет, нет|нет, наоборот"
+    r")\b",
+    re.IGNORECASE,
+)
 CANONICAL_WHITESPACE_RE = re.compile(r"\s+")
 QUESTION_TOKEN_RE = re.compile(r"[A-Za-zА-Яа-яЁё0-9]+")
 LEADING_FILLER_RE = re.compile(
-    r"^(?:(?:а|ну|вот|так|и|слушай|смотри)\s*[,:\-]?\s*)+",
+    r"^(?:(?:а|ну|вот|так|и|слушай|смотри)\b\s*[,:\-]?\s*)+",
     re.IGNORECASE,
 )
 FILLER_TOKEN_RE = re.compile(
     r"^(?:а|ну|вот|так|и|то|есть|да|наверное|если|честно|вообще|как|бы|смотри|слушай)$",
+    re.IGNORECASE,
+)
+LOW_SIGNAL_FOLLOWUP_RE = re.compile(
+    r"^(?:"
+    r"или\s+(?:знаешь|есть)\b.*(?:это|такое|способы)\b|"
+    r"как\s+это\s+можно\s+исправить\b|"
+    r"ну\s*,?\s*а\s+что\s+у\s+нас\b|"
+    r"что\s+у\s+нас(?:\s+еще)?\b|"
+    r"(?:а\s+)?какие\s+еще\b|"
+    r"не\s+трогаем\s+пока\b"
+    r")",
     re.IGNORECASE,
 )
 KNOWN_INTERVIEWER_LABELS = (
@@ -201,7 +230,9 @@ def _extract_questions_from_slice(
     min_length: int,
     max_length: int,
 ) -> list[QuestionCandidate]:
-    prepared_text = normalize_whitespace(transcript_slice.text)
+    prepared_text = _trim_after_candidate_question_invite(
+        normalize_whitespace(transcript_slice.text)
+    )
     chunks = QUESTION_SPLIT_RE.split(prepared_text)
 
     questions: list[QuestionCandidate] = []
@@ -221,6 +252,8 @@ def _extract_questions_from_slice(
             if _looks_like_answer(question_text):
                 continue
             if _looks_like_filler_fragment(question_text):
+                continue
+            if _looks_like_low_signal_followup(question_text):
                 continue
             if len(question_text) < min_length or len(question_text) > max_length:
                 continue
@@ -245,6 +278,13 @@ def _cleanup_question(value: str) -> str:
     cleaned = cleaned.strip(" .,!;:-")
     cleaned = cleaned.replace(" ?", "?")
     return cleaned
+
+
+def _trim_after_candidate_question_invite(value: str) -> str:
+    match = CANDIDATE_QUESTION_INVITE_RE.search(value)
+    if match is None:
+        return value
+    return value[: match.start()].rstrip()
 
 
 def _looks_like_noise(value: str) -> bool:
@@ -275,6 +315,8 @@ def _looks_like_answer(value: str) -> bool:
     lowered = _normalize_intent_text(value)
     if not lowered:
         return False
+    if STRONG_ANSWER_LIKE_RE.match(lowered):
+        return True
     if QUESTION_LIKE_RE.match(lowered):
         return False
     return ANSWER_LIKE_RE.match(lowered) is not None
@@ -296,6 +338,20 @@ def _looks_like_filler_fragment(value: str) -> bool:
 
     filler_ratio = filler_count / len(tokens)
     return filler_ratio >= 0.45 and content_count <= 3
+
+
+def _looks_like_low_signal_followup(value: str) -> bool:
+    normalized = _normalize_intent_text(value)
+    if not normalized:
+        return False
+    if LOW_SIGNAL_FOLLOWUP_RE.match(normalized):
+        return True
+
+    tokens = _tokenize_question(normalized)
+    if len(tokens) <= 5 and {"что", "это", "такое"} <= set(tokens):
+        return True
+
+    return False
 
 
 def _deduplicate_preserving_order(

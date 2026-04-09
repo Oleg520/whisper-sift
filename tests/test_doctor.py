@@ -12,6 +12,7 @@ if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from whisper_sift.infrastructure.ffmpeg import FfmpegProbe
+from whisper_sift.runtime.hardware import NvidiaHardwareStatus
 from whisper_sift.runtime.doctor import (
     DoctorReport,
     TorchStatus,
@@ -48,6 +49,7 @@ class DoctorTests(unittest.TestCase):
             runtime_root=Path("/tmp/whisper-sift"),
             project_root=PROJECT_ROOT,
             platform_name="TestOS",
+            nvidia=NvidiaHardwareStatus(available=False, executable=None),
             dependencies=(
                 _status("torch", "torch", True, True),
                 _status("whisper", "openai-whisper", True, True),
@@ -70,6 +72,45 @@ class DoctorTests(unittest.TestCase):
 
         self.assertTrue(report.is_ready)
         self.assertEqual((), report.issues)
+
+    def test_report_warns_when_gpu_exists_but_torch_is_cpu_only(self) -> None:
+        report = DoctorReport(
+            python_executable=sys.executable,
+            python_version="3.11.0",
+            package_root=PROJECT_ROOT / "src" / "whisper_sift",
+            runtime_root=Path("/tmp/whisper-sift"),
+            project_root=PROJECT_ROOT,
+            platform_name="TestOS",
+            nvidia=NvidiaHardwareStatus(
+                available=True,
+                executable="nvidia-smi",
+                gpu_names=("NVIDIA RTX",),
+            ),
+            dependencies=(
+                _status("torch", "torch", True, True),
+                _status("whisper", "openai-whisper", True, True),
+                _status("imageio_ffmpeg", "imageio-ffmpeg", False, False),
+            ),
+            torch=TorchStatus(
+                available=True,
+                version="2.10.0+cpu",
+                cuda_available=False,
+                mps_available=False,
+                build_variant="cpu",
+                cuda_version=None,
+            ),
+            ffmpeg=FfmpegProbe(
+                active_executable=Path("/usr/bin/ffmpeg"),
+                source="system",
+                system_executable=Path("/usr/bin/ffmpeg"),
+                bundled_executable=None,
+                imageio_executable=None,
+            ),
+        )
+
+        self.assertTrue(report.is_ready)
+        self.assertEqual(1, len(report.warnings))
+        self.assertIn("CPU-only", report.warnings[0])
 
 
 def _status(module_name: str, package_name: str, available: bool, required: bool):

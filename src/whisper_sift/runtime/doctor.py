@@ -11,7 +11,9 @@ from whisper_sift.paths import PACKAGE_ROOT, PROJECT_ROOT, RUNTIME_ROOT
 from whisper_sift.runtime.dependencies import (
     TRANSCRIPTION_DEPENDENCIES,
     ensure_transcription_dependencies,
+    recommended_cuda_torch_command,
 )
+from whisper_sift.runtime.hardware import NvidiaHardwareStatus, probe_nvidia_hardware
 
 
 @dataclass(slots=True)
@@ -29,6 +31,8 @@ class TorchStatus:
     version: str | None
     cuda_available: bool
     mps_available: bool
+    build_variant: str | None = None
+    cuda_version: str | None = None
 
 
 @dataclass(slots=True)
@@ -39,6 +43,7 @@ class DoctorReport:
     runtime_root: Path
     project_root: Path | None
     platform_name: str
+    nvidia: NvidiaHardwareStatus
     dependencies: tuple[DependencyStatus, ...]
     torch: TorchStatus
     ffmpeg: FfmpegProbe
@@ -60,6 +65,38 @@ class DoctorReport:
         return tuple(issues)
 
     @property
+    def warnings(self) -> tuple[str, ...]:
+        warnings: list[str] = []
+
+        if self.nvidia.error:
+            warnings.append(
+                f"NVIDIA tooling detected, but GPU probing failed: {self.nvidia.error}"
+            )
+
+        if self.nvidia.available and not self.torch.available:
+            warnings.append(
+                "NVIDIA GPU detected, but torch is not installed yet. "
+                "The first bootstrap will install a CUDA-enabled torch build."
+            )
+        elif self.nvidia.available and self.torch.available:
+            if self.torch.build_variant == "cpu":
+                warnings.append(
+                    "NVIDIA GPU detected, but installed torch build is CPU-only. "
+                    f"Recommended command: {recommended_cuda_torch_command()}"
+                )
+            elif (
+                self.torch.build_variant
+                and self.torch.build_variant.startswith("cu")
+                and not self.torch.cuda_available
+            ):
+                warnings.append(
+                    "CUDA-enabled torch build is installed, but torch.cuda.is_available() "
+                    "is false. Check the NVIDIA driver and active Python environment."
+                )
+
+        return tuple(warnings)
+
+    @property
     def is_ready(self) -> bool:
         return not self.issues
 
@@ -69,6 +106,7 @@ def collect_doctor_report(*, install_missing: bool = False) -> DoctorReport:
         ensure_transcription_dependencies()
 
     ffmpeg = probe_ffmpeg_environment()
+    nvidia = probe_nvidia_hardware()
     dependencies = _collect_dependency_statuses(system_ffmpeg_available=ffmpeg.system_executable is not None)
     torch = _collect_torch_status()
 
@@ -79,6 +117,7 @@ def collect_doctor_report(*, install_missing: bool = False) -> DoctorReport:
         runtime_root=RUNTIME_ROOT,
         project_root=PROJECT_ROOT,
         platform_name=platform.platform(),
+        nvidia=nvidia,
         dependencies=dependencies,
         torch=torch,
         ffmpeg=ffmpeg,
@@ -92,6 +131,18 @@ def print_doctor_report(report: DoctorReport) -> None:
     print(f"[package]  {report.package_root}")
     print(f"[runtime]  {report.runtime_root}")
     print(f"[platform] {report.platform_name}")
+    if report.nvidia.available:
+        print(
+            "[nvidia]   detected"
+            f" ({', '.join(report.nvidia.gpu_names)})"
+        )
+        if report.nvidia.executable is not None:
+            print(f"[nvidia]   executable={report.nvidia.executable}")
+    elif report.nvidia.executable is not None:
+        print("[nvidia]   unavailable")
+        print(f"[nvidia]   executable={report.nvidia.executable}")
+    else:
+        print("[nvidia]   not found")
 
     for dependency in report.dependencies:
         if dependency.available:
@@ -108,7 +159,12 @@ def print_doctor_report(report: DoctorReport) -> None:
         )
 
     if report.torch.available:
-        print(f"[torch]    version={report.torch.version or 'unknown'}")
+        build = report.torch.build_variant or "unknown"
+        print(
+            f"[torch]    version={report.torch.version or 'unknown'} build={build}"
+        )
+        if report.torch.cuda_version is not None:
+            print(f"[torch]    cuda_version={report.torch.cuda_version}")
         print(f"[cuda]     {'available' if report.torch.cuda_available else 'unavailable'}")
         print(f"[mps]      {'available' if report.torch.mps_available else 'unavailable'}")
     else:
@@ -129,6 +185,9 @@ def print_doctor_report(report: DoctorReport) -> None:
             print(f"[ffmpeg]   bundled={report.ffmpeg.bundled_executable}")
         if report.ffmpeg.imageio_executable is not None:
             print(f"[ffmpeg]   imageio={report.ffmpeg.imageio_executable}")
+
+    for warning in report.warnings:
+        print(f"[warn]     {warning}")
 
     if report.is_ready:
         print("[status]   ready for transcription")
@@ -163,6 +222,8 @@ def _collect_torch_status() -> TorchStatus:
         return TorchStatus(
             available=False,
             version=None,
+            build_variant=None,
+            cuda_version=None,
             cuda_available=False,
             mps_available=False,
         )
@@ -173,16 +234,39 @@ def _collect_torch_status() -> TorchStatus:
         return TorchStatus(
             available=False,
             version=None,
+            build_variant=None,
+            cuda_version=None,
             cuda_available=False,
             mps_available=False,
         )
 
+    version = getattr(torch, "__version__", None)
+    cuda_version = getattr(getattr(torch, "version", None), "cuda", None)
+    build_variant = _detect_torch_build_variant(version, cuda_version)
     mps_available = bool(
         hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
     )
     return TorchStatus(
         available=True,
-        version=getattr(torch, "__version__", None),
+        version=version,
+        build_variant=build_variant,
+        cuda_version=str(cuda_version) if cuda_version is not None else None,
         cuda_available=bool(torch.cuda.is_available()),
         mps_available=mps_available,
     )
+
+
+def _detect_torch_build_variant(
+    version: str | None,
+    cuda_version: str | None,
+) -> str | None:
+    if cuda_version:
+        return f"cu{str(cuda_version).replace('.', '')}"
+
+    normalized_version = (version or "").lower()
+    if "+cu" in normalized_version:
+        return normalized_version.rsplit("+", maxsplit=1)[-1]
+    if "+cpu" in normalized_version:
+        return "cpu"
+
+    return None
