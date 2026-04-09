@@ -85,6 +85,9 @@ FILLER_TOKEN_RE = re.compile(
 )
 LOW_SIGNAL_FOLLOWUP_RE = re.compile(
     r"^(?:"
+    r"(?:а\s+)?по\s+стеку\s+что\b|"
+    r"(?:а\s+)?какой\s+стек\s+у\s+тебя\b.*|"
+    r"или\s+это\s+был\s+первый\s+опыт\b|"
     r"или\s+(?:знаешь|есть)\b.*(?:это|такое|способы)\b|"
     r"как\s+это\s+можно\s+исправить\b|"
     r"ну\s*,?\s*а\s+что\s+у\s+нас\b|"
@@ -197,6 +200,7 @@ CONFIRMATION_PROMPT_RE = re.compile(
     r"^(?:"
     r"(?:так,\s*)?(?:видишь|понятно|слышно)\s*,?\s*да|"
     r"не\s+использовали,\s*да|"
+    r"в\s+сервисе,\s*да|"
     r"слышал,\s*да,\s*про\s+них|"
     r"ну,\s*и\s+раздач\w+.*да|"
     r"так,\s*ну,\s*как\s+бы\s+оно.*да"
@@ -212,7 +216,8 @@ META_PROMPT_RE = re.compile(
     re.IGNORECASE,
 )
 SMALLTALK_PROMPT_RE = re.compile(
-    r"^(?:ну,\s*)?что\s+ты\s+такой\b.*\bот\s+себя\b",
+    r"^(?:(?:ну,\s*)?что\s+ты\s+такой\b.*\bот\s+себя\b|"
+    r"что\s+это\s+у\s+меня\s+в\s+ступор\b.*)",
     re.IGNORECASE,
 )
 WRAPUP_PROMPT_RE = re.compile(
@@ -248,6 +253,9 @@ GENERIC_FOLLOWUP_RE = re.compile(
 INCOMPLETE_FRAGMENT_RE = re.compile(
     r"^(?:"
     r"дополнительн\w+\s+\w+,\s*или\s+что|"
+    r"бинарн\w+\s+или\s+не\s+бинарн\w*|"
+    r"плюс\s+длинн\w+\s+транзакц\w*|"
+    r"что\s+несколько\s+инстинкц\w+.*|"
     r"аспекты\b.*|"
     r"как\s+это\s+называется\b.*|"
     r"а,\s*можно\s+понимать,\s*по\b.*|"
@@ -261,6 +269,7 @@ INCOMPLETE_FRAGMENT_RE = re.compile(
 )
 GARBLED_FRAGMENT_RE = re.compile(
     r"(?:"
+    r"функциональн\w+\s+интерфейс\w*,?\s*да|"
     r"закручеч\w*|"
     r"труп[- ]?лухан\w*|"
     r"икрус\w*|"

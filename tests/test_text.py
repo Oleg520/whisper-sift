@@ -618,6 +618,65 @@ class TextUtilityTests(unittest.TestCase):
             questions,
         )
 
+    def test_extract_question_candidates_filters_short_contextual_noise_from_tutko(self) -> None:
+        transcript = (
+            "А по стеку что?\n"
+            "Бинарное или не бинарное?\n"
+            "Что это у меня в ступор, кто вгоняет?\n"
+            "Ты знаком с проблемой n плюс 1?\n"
+            "Какие есть операции над стримом по типу?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Ты знаком с проблемой n плюс 1?",
+                "Какие есть операции над стримом по типу?",
+            ],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_short_contextual_noise_from_golubev(self) -> None:
+        transcript = (
+            "А какой стек у тебя, вот, сейчас?\n"
+            "Как функциональной интерфейсе, да?\n"
+            "Что несколько инстинкцев есть у одного сервиса, да?\n"
+            "Можешь попробовать, например, объяснить вот, допустим, про дедлок?\n"
+            "А про Spring, то вот сейчас теперь давай, что такое dependency injection, и как он связан с спрингом?\n"
+            "А что такое DLQ?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Можешь попробовать, например, объяснить вот, допустим, про дедлок?",
+                "А про Spring, то вот сейчас теперь давай, что такое dependency injection, и как он связан с спрингом?",
+                "А что такое DLQ?",
+            ],
+            questions,
+        )
+
+    def test_extract_question_candidates_filters_short_contextual_noise_from_safargulov(self) -> None:
+        transcript = (
+            "В сервисе, да?\n"
+            "Или это был первый опыт?\n"
+            "Плюс длинной транзакцией?\n"
+            "Скажите, каким феррборками вы пользовались, когда делали отправку в кавку?\n"
+            "Для чего индексы нужны в базе данных?\n"
+        )
+
+        questions = extract_question_candidates(transcript)
+
+        self.assertEqual(
+            [
+                "Скажите, каким феррборками вы пользовались, когда делали отправку в кавку?",
+                "Для чего индексы нужны в базе данных?",
+            ],
+            questions,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
