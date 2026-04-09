@@ -50,6 +50,9 @@ class CliTests(unittest.TestCase):
         self.assertEqual(DEFAULT_MAX_QUESTION_LENGTH, extract_args.max_length)
         self.assertEqual("golden_set.json", evaluate_args.golden_set.name)
         self.assertEqual([], evaluate_args.case)
+        self.assertIsNone(evaluate_args.baseline_report)
+        self.assertIsNone(evaluate_args.diff_json)
+        self.assertFalse(evaluate_args.update_baseline)
 
     def test_normalize_output_formats_deduplicates_and_lowercases(self) -> None:
         normalized = _normalize_output_formats(["TXT", "srt", "txt", " SRT "])

@@ -166,6 +166,64 @@ class ApplicationTests(unittest.TestCase):
             self.assertEqual(report_json, result.report_json_path)
             self.assertIn('"ok": true', report_json.read_text(encoding="utf-8").lower())
 
+    @patch("whisper_sift.application.evaluate.load_evaluation_report")
+    @patch("whisper_sift.application.evaluate.diff_evaluation_reports")
+    @patch("whisper_sift.application.evaluate.evaluate_golden_set")
+    def test_run_evaluate_can_update_baseline_and_write_diff(
+        self,
+        evaluate_golden_set_mock,
+        diff_reports_mock,
+        load_report_mock,
+    ) -> None:
+        class _FakeReport:
+            is_passing = True
+            cases = ()
+            passed_case_count = 1
+            case_count = 1
+            required_matched = 2
+            required_total = 2
+            forbidden_present = 0
+            forbidden_total = 1
+
+            def to_dict(self) -> dict[str, object]:
+                return {"ok": True}
+
+        class _FakeDiff:
+            changed_case_count = 1
+            regression_case_count = 0
+            improvement_case_count = 1
+            case_diffs = ()
+
+            def to_dict(self) -> dict[str, object]:
+                return {"diff": True}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            golden_set = workspace / "golden_set.json"
+            report_json = workspace / "latest_report.json"
+            baseline_json = workspace / "baseline_report.json"
+            diff_json = workspace / "latest_diff.json"
+            golden_set.write_text('{"cases": []}', encoding="utf-8")
+            baseline_json.write_text('{"cases": []}', encoding="utf-8")
+            evaluate_golden_set_mock.return_value = _FakeReport()
+            load_report_mock.return_value = _FakeReport()
+            diff_reports_mock.return_value = _FakeDiff()
+
+            result = run_evaluate(
+                EvaluateRequest(
+                    golden_set_path=golden_set,
+                    report_json_path=report_json,
+                    baseline_report_path=baseline_json,
+                    diff_json_path=diff_json,
+                    update_baseline=True,
+                )
+            )
+
+            self.assertEqual(diff_json, result.diff_json_path)
+            self.assertEqual(baseline_json, result.baseline_report_path)
+            self.assertIn('"diff": true', diff_json.read_text(encoding="utf-8").lower())
+            self.assertIn('"ok": true', baseline_json.read_text(encoding="utf-8").lower())
+
 
 if __name__ == "__main__":
     unittest.main()

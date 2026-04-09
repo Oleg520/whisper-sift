@@ -92,11 +92,26 @@ python transcribe_whisper.py evaluate
 - проверяет обязательные `required_questions`
 - следит, чтобы не появились `forbidden_questions`
 - сохраняет JSON-отчёт в `.analysis/eval/latest_report.json`
+- может сравнить текущий отчёт с baseline report
+- может обновить baseline текущим результатом
 
 Можно указать свои пути и выбрать отдельные кейсы:
 
 ```powershell
 python transcribe_whisper.py evaluate --golden-set .analysis/eval/golden_set.json --case interview1 --case gavrilin
+```
+
+Для regression loop удобно использовать baseline:
+
+```powershell
+python transcribe_whisper.py evaluate --update-baseline
+python transcribe_whisper.py evaluate --baseline-report .analysis/eval/baseline_report.json
+```
+
+Во втором случае рядом можно сохранить и diff:
+
+```powershell
+python transcribe_whisper.py evaluate --baseline-report .analysis/eval/baseline_report.json --diff-json .analysis/eval/latest_diff.json
 ```
 
 ## Параметры транскрибации

@@ -259,6 +259,78 @@ class CliIntegrationTests(unittest.TestCase):
             self.assertIn('"is_passing": true', report_path.read_text(encoding="utf-8").lower())
             self.assertIn("[eval] sample: PASS", result.stdout)
 
+    def test_launcher_evaluate_can_compare_with_baseline_and_update_it(self) -> None:
+        transcript = (
+            "Расскажите про ваш последний проект\n"
+            "Какие технологии вы использовали?\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            transcript_path = workspace / "sample.txt"
+            golden_set_path = workspace / "golden_set.json"
+            report_path = workspace / "latest_report.json"
+            baseline_path = workspace / "baseline_report.json"
+            diff_path = workspace / "latest_diff.json"
+            transcript_path.write_text(transcript, encoding="utf-8")
+            golden_set_path.write_text(
+                (
+                    "{\n"
+                    '  "cases": [\n'
+                    "    {\n"
+                    '      "name": "sample",\n'
+                    '      "source": "sample.txt",\n'
+                    '      "required_questions": [\n'
+                    '        "Расскажите про ваш последний проект?",\n'
+                    '        "Какие технологии вы использовали?"\n'
+                    "      ],\n"
+                    '      "forbidden_questions": []\n'
+                    "    }\n"
+                    "  ]\n"
+                    "}\n"
+                ),
+                encoding="utf-8",
+            )
+            baseline_path.write_text(
+                (
+                    "{\n"
+                    '  "golden_set_path": "golden_set.json",\n'
+                    '  "cases": [\n'
+                    "    {\n"
+                    '      "name": "sample",\n'
+                    '      "source_path": "sample.txt",\n'
+                    '      "matched_required": ["Расскажите про ваш последний проект?"],\n'
+                    '      "missing_required": ["Какие технологии вы использовали?"],\n'
+                    '      "present_forbidden": [],\n'
+                    '      "extracted_questions": ["Расскажите про ваш последний проект?"]\n'
+                    "    }\n"
+                    "  ]\n"
+                    "}\n"
+                ),
+                encoding="utf-8",
+            )
+
+            result = self._run_cli(
+                str(LAUNCHER),
+                "evaluate",
+                "--golden-set",
+                str(golden_set_path),
+                "--report-json",
+                str(report_path),
+                "--baseline-report",
+                str(baseline_path),
+                "--diff-json",
+                str(diff_path),
+                "--update-baseline",
+            )
+
+            self.assertEqual(0, result.returncode, msg=result.stderr or result.stdout)
+            self.assertTrue(diff_path.exists())
+            self.assertIn('"improvement_case_count": 1', diff_path.read_text(encoding="utf-8"))
+            self.assertIn('"is_passing": true', baseline_path.read_text(encoding="utf-8").lower())
+            self.assertIn("[eval:diff] sample: improvement", result.stdout)
+            self.assertIn("[eval] Baseline updated", result.stdout)
+
     def _run_cli(
         self,
         *arguments: str,

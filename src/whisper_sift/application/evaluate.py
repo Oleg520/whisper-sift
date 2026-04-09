@@ -4,7 +4,13 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from whisper_sift.domain.evaluation import EvaluationReport, evaluate_golden_set
+from whisper_sift.domain.evaluation import (
+    EvaluationReport,
+    EvaluationReportDiff,
+    diff_evaluation_reports,
+    evaluate_golden_set,
+    load_evaluation_report,
+)
 from whisper_sift.runtime.reporting import ProgressReporter, report_progress
 
 
@@ -12,6 +18,9 @@ from whisper_sift.runtime.reporting import ProgressReporter, report_progress
 class EvaluateRequest:
     golden_set_path: Path
     report_json_path: Path | None = None
+    baseline_report_path: Path | None = None
+    diff_json_path: Path | None = None
+    update_baseline: bool = False
     selected_cases: tuple[str, ...] = ()
     reporter: ProgressReporter | None = None
 
@@ -20,6 +29,9 @@ class EvaluateRequest:
 class EvaluateResult:
     report: EvaluationReport
     report_json_path: Path | None = None
+    baseline_report_path: Path | None = None
+    diff: EvaluationReportDiff | None = None
+    diff_json_path: Path | None = None
 
 
 def run_evaluate(request: EvaluateRequest) -> EvaluateResult:
@@ -47,6 +59,12 @@ def run_evaluate(request: EvaluateRequest) -> EvaluateResult:
     )
 
     report_json_path = request.report_json_path.expanduser() if request.report_json_path else None
+    baseline_report_path = (
+        request.baseline_report_path.expanduser()
+        if request.baseline_report_path
+        else None
+    )
+    diff_json_path = request.diff_json_path.expanduser() if request.diff_json_path else None
     if report_json_path is not None:
         report_json_path.parent.mkdir(parents=True, exist_ok=True)
         report_json_path.write_text(
@@ -58,4 +76,78 @@ def run_evaluate(request: EvaluateRequest) -> EvaluateResult:
             f"[eval] Report written to {report_json_path}",
         )
 
-    return EvaluateResult(report=report, report_json_path=report_json_path)
+    diff: EvaluationReportDiff | None = None
+    if baseline_report_path is not None:
+        if not baseline_report_path.exists() and not request.update_baseline:
+            raise RuntimeError(
+                f"Baseline report not found: {baseline_report_path}"
+            )
+        if baseline_report_path.exists():
+            baseline_report = load_evaluation_report(baseline_report_path)
+            diff = diff_evaluation_reports(
+                baseline_report,
+                report,
+                current_report_path=report_json_path,
+                baseline_report_path=baseline_report_path,
+            )
+            _report_diff(diff, reporter=request.reporter)
+            if diff_json_path is not None:
+                diff_json_path.parent.mkdir(parents=True, exist_ok=True)
+                diff_json_path.write_text(
+                    json.dumps(diff.to_dict(), ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                report_progress(
+                    request.reporter,
+                    f"[eval] Diff written to {diff_json_path}",
+                )
+
+    if request.update_baseline and baseline_report_path is not None:
+        baseline_report_path.parent.mkdir(parents=True, exist_ok=True)
+        baseline_report_path.write_text(
+            json.dumps(report.to_dict(), ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        report_progress(
+            request.reporter,
+            f"[eval] Baseline updated at {baseline_report_path}",
+        )
+
+    return EvaluateResult(
+        report=report,
+        report_json_path=report_json_path,
+        baseline_report_path=baseline_report_path,
+        diff=diff,
+        diff_json_path=diff_json_path,
+    )
+
+
+def _report_diff(
+    diff: EvaluationReportDiff,
+    *,
+    reporter: ProgressReporter | None,
+) -> None:
+    for case in diff.case_diffs:
+        if not case.has_changes:
+            continue
+        markers: list[str] = []
+        if case.has_regression:
+            markers.append("regression")
+        if case.has_improvement:
+            markers.append("improvement")
+        if not markers:
+            markers.append("changed")
+        report_progress(
+            reporter,
+            "[eval:diff] "
+            f"{case.name}: {', '.join(markers)} "
+            f"(questions {case.baseline_extracted_question_count} -> {case.current_extracted_question_count})",
+        )
+
+    report_progress(
+        reporter,
+        "[eval:diff] Summary: "
+        f"{diff.changed_case_count} changed, "
+        f"{diff.regression_case_count} regressions, "
+        f"{diff.improvement_case_count} improvements.",
+    )

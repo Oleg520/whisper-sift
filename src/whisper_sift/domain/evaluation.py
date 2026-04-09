@@ -110,6 +110,99 @@ class EvaluationReport:
         }
 
 
+@dataclass(slots=True, frozen=True)
+class CaseEvaluationDiff:
+    name: str
+    baseline_passed: bool
+    current_passed: bool
+    baseline_extracted_question_count: int
+    current_extracted_question_count: int
+    newly_missing_required: tuple[str, ...]
+    resolved_missing_required: tuple[str, ...]
+    newly_present_forbidden: tuple[str, ...]
+    resolved_forbidden: tuple[str, ...]
+    added_questions: tuple[str, ...]
+    removed_questions: tuple[str, ...]
+
+    @property
+    def has_changes(self) -> bool:
+        return any(
+            (
+                self.baseline_passed != self.current_passed,
+                self.baseline_extracted_question_count != self.current_extracted_question_count,
+                self.newly_missing_required,
+                self.resolved_missing_required,
+                self.newly_present_forbidden,
+                self.resolved_forbidden,
+                self.added_questions,
+                self.removed_questions,
+            )
+        )
+
+    @property
+    def has_regression(self) -> bool:
+        return bool(self.newly_missing_required or self.newly_present_forbidden)
+
+    @property
+    def has_improvement(self) -> bool:
+        return bool(self.resolved_missing_required or self.resolved_forbidden)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "baseline_passed": self.baseline_passed,
+            "current_passed": self.current_passed,
+            "baseline_extracted_question_count": self.baseline_extracted_question_count,
+            "current_extracted_question_count": self.current_extracted_question_count,
+            "extracted_question_count_delta": (
+                self.current_extracted_question_count - self.baseline_extracted_question_count
+            ),
+            "newly_missing_required": list(self.newly_missing_required),
+            "resolved_missing_required": list(self.resolved_missing_required),
+            "newly_present_forbidden": list(self.newly_present_forbidden),
+            "resolved_forbidden": list(self.resolved_forbidden),
+            "added_questions": list(self.added_questions),
+            "removed_questions": list(self.removed_questions),
+            "has_changes": self.has_changes,
+            "has_regression": self.has_regression,
+            "has_improvement": self.has_improvement,
+        }
+
+
+@dataclass(slots=True, frozen=True)
+class EvaluationReportDiff:
+    baseline_report_path: Path
+    current_report_path: Path | None
+    case_diffs: tuple[CaseEvaluationDiff, ...]
+
+    @property
+    def changed_case_count(self) -> int:
+        return sum(1 for case in self.case_diffs if case.has_changes)
+
+    @property
+    def regression_case_count(self) -> int:
+        return sum(1 for case in self.case_diffs if case.has_regression)
+
+    @property
+    def improvement_case_count(self) -> int:
+        return sum(1 for case in self.case_diffs if case.has_improvement)
+
+    @property
+    def has_changes(self) -> bool:
+        return self.changed_case_count > 0
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "baseline_report_path": str(self.baseline_report_path),
+            "current_report_path": str(self.current_report_path) if self.current_report_path else None,
+            "changed_case_count": self.changed_case_count,
+            "regression_case_count": self.regression_case_count,
+            "improvement_case_count": self.improvement_case_count,
+            "has_changes": self.has_changes,
+            "cases": [case.to_dict() for case in self.case_diffs],
+        }
+
+
 def load_golden_set(
     golden_set_path: Path,
     *,
@@ -179,6 +272,129 @@ def evaluate_golden_set(
     return EvaluationReport(
         golden_set_path=golden_set_path,
         cases=evaluations,
+    )
+
+
+def load_evaluation_report(report_path: Path) -> EvaluationReport:
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    raw_cases = payload.get("cases")
+    if not isinstance(raw_cases, list):
+        raise RuntimeError("Evaluation report must contain a 'cases' list.")
+
+    cases: list[CaseEvaluation] = []
+    golden_set_path = Path(str(payload.get("golden_set_path") or report_path))
+    for index, raw_case in enumerate(raw_cases, start=1):
+        if not isinstance(raw_case, dict):
+            raise RuntimeError(f"Evaluation report case #{index} must be an object.")
+
+        case_name = str(raw_case.get("name") or "").strip()
+        source_path = Path(str(raw_case.get("source_path") or ""))
+        matched_required = _normalize_string_tuple(raw_case.get("matched_required"))
+        missing_required = _normalize_string_tuple(raw_case.get("missing_required"))
+        present_forbidden = _normalize_string_tuple(raw_case.get("present_forbidden"))
+        extracted_questions = _normalize_string_tuple(raw_case.get("extracted_questions"))
+
+        cases.append(
+            CaseEvaluation(
+                case=GoldenCase(
+                    name=case_name,
+                    source_path=source_path,
+                    required_questions=tuple(matched_required + missing_required),
+                    forbidden_questions=tuple(present_forbidden),
+                ),
+                extracted_questions=tuple(extracted_questions),
+                matched_required=tuple(matched_required),
+                missing_required=tuple(missing_required),
+                present_forbidden=tuple(present_forbidden),
+            )
+        )
+
+    return EvaluationReport(
+        golden_set_path=golden_set_path,
+        cases=tuple(cases),
+    )
+
+
+def diff_evaluation_reports(
+    baseline_report: EvaluationReport,
+    current_report: EvaluationReport,
+    *,
+    current_report_path: Path | None = None,
+    baseline_report_path: Path | None = None,
+) -> EvaluationReportDiff:
+    baseline_cases = {case.case.name: case for case in baseline_report.cases}
+    current_cases = {case.case.name: case for case in current_report.cases}
+    all_case_names = sorted(set(baseline_cases) | set(current_cases))
+
+    diffs: list[CaseEvaluationDiff] = []
+    for case_name in all_case_names:
+        baseline_case = baseline_cases.get(case_name)
+        current_case = current_cases.get(case_name)
+
+        baseline_missing = {
+            _canonicalize_question(question): question
+            for question in (baseline_case.missing_required if baseline_case else ())
+        }
+        current_missing = {
+            _canonicalize_question(question): question
+            for question in (current_case.missing_required if current_case else ())
+        }
+        baseline_forbidden = {
+            _canonicalize_question(question): question
+            for question in (baseline_case.present_forbidden if baseline_case else ())
+        }
+        current_forbidden = {
+            _canonicalize_question(question): question
+            for question in (current_case.present_forbidden if current_case else ())
+        }
+
+        baseline_questions = {
+            _canonicalize_question(question): question
+            for question in (baseline_case.extracted_questions if baseline_case else ())
+        }
+        current_questions = {
+            _canonicalize_question(question): question
+            for question in (current_case.extracted_questions if current_case else ())
+        }
+
+        diffs.append(
+            CaseEvaluationDiff(
+                name=case_name,
+                baseline_passed=baseline_case.passed if baseline_case else False,
+                current_passed=current_case.passed if current_case else False,
+                baseline_extracted_question_count=len(baseline_questions),
+                current_extracted_question_count=len(current_questions),
+                newly_missing_required=tuple(
+                    current_missing[key]
+                    for key in sorted(current_missing.keys() - baseline_missing.keys())
+                ),
+                resolved_missing_required=tuple(
+                    baseline_missing[key]
+                    for key in sorted(baseline_missing.keys() - current_missing.keys())
+                ),
+                newly_present_forbidden=tuple(
+                    current_forbidden[key]
+                    for key in sorted(current_forbidden.keys() - baseline_forbidden.keys())
+                ),
+                resolved_forbidden=tuple(
+                    baseline_forbidden[key]
+                    for key in sorted(baseline_forbidden.keys() - current_forbidden.keys())
+                ),
+                added_questions=tuple(
+                    current_questions[key]
+                    for key in sorted(current_questions.keys() - baseline_questions.keys())
+                ),
+                removed_questions=tuple(
+                    baseline_questions[key]
+                    for key in sorted(baseline_questions.keys() - current_questions.keys())
+                ),
+            )
+        )
+
+    return EvaluationReportDiff(
+        baseline_report_path=baseline_report_path or baseline_report.golden_set_path,
+        current_report_path=current_report_path,
+        case_diffs=tuple(diffs),
     )
 
 

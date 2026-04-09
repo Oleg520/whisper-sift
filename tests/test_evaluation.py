@@ -11,7 +11,12 @@ SRC_DIR = PROJECT_ROOT / "src"
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
-from whisper_sift.domain.evaluation import evaluate_golden_set, load_golden_set
+from whisper_sift.domain.evaluation import (
+    diff_evaluation_reports,
+    evaluate_golden_set,
+    load_evaluation_report,
+    load_golden_set,
+)
 
 
 class EvaluationTests(unittest.TestCase):
@@ -120,6 +125,65 @@ class EvaluationTests(unittest.TestCase):
 
             self.assertEqual(1, report.case_count)
             self.assertEqual("second", report.cases[0].case.name)
+
+    def test_load_evaluation_report_and_diff_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            baseline_path = workspace / "baseline.json"
+            current_path = workspace / "current.json"
+            baseline_path.write_text(
+                (
+                    "{\n"
+                    '  "golden_set_path": "golden_set.json",\n'
+                    '  "cases": [\n'
+                    "    {\n"
+                    '      "name": "sample",\n'
+                    '      "source_path": "sample.txt",\n'
+                    '      "matched_required": ["Q1"],\n'
+                    '      "missing_required": ["Q2"],\n'
+                    '      "present_forbidden": ["Bad 1"],\n'
+                    '      "extracted_questions": ["Q1", "Bad 1"]\n'
+                    "    }\n"
+                    "  ]\n"
+                    "}\n"
+                ),
+                encoding="utf-8",
+            )
+            current_path.write_text(
+                (
+                    "{\n"
+                    '  "golden_set_path": "golden_set.json",\n'
+                    '  "cases": [\n'
+                    "    {\n"
+                    '      "name": "sample",\n'
+                    '      "source_path": "sample.txt",\n'
+                    '      "matched_required": ["Q1", "Q2"],\n'
+                    '      "missing_required": [],\n'
+                    '      "present_forbidden": [],\n'
+                    '      "extracted_questions": ["Q1", "Q2"]\n'
+                    "    }\n"
+                    "  ]\n"
+                    "}\n"
+                ),
+                encoding="utf-8",
+            )
+
+            baseline_report = load_evaluation_report(baseline_path)
+            current_report = load_evaluation_report(current_path)
+            diff = diff_evaluation_reports(
+                baseline_report,
+                current_report,
+                current_report_path=current_path,
+                baseline_report_path=baseline_path,
+            )
+
+            self.assertTrue(diff.has_changes)
+            self.assertEqual(1, diff.improvement_case_count)
+            self.assertEqual(0, diff.regression_case_count)
+            case = diff.case_diffs[0]
+            self.assertEqual(("Q2",), case.resolved_missing_required)
+            self.assertEqual(("Bad 1",), case.resolved_forbidden)
+            self.assertEqual(("Q2",), case.added_questions)
 
 
 if __name__ == "__main__":
