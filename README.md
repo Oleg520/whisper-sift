@@ -130,7 +130,7 @@ python -m pip install torch openai-whisper imageio-ffmpeg
 
 ## Тесты
 
-Python-тесты, включая unit coverage и CLI smoke tests для `transcribe_whisper.py` и `python -m whisper_sift`:
+Python-тесты, включая unit coverage и CLI smoke tests для `transcribe_whisper.py` и `python -m whisper_sift` на сценариях `extract-questions`, `transcribe` и `pipeline`:
 
 ```powershell
 python -m unittest discover -s tests -v
@@ -141,6 +141,7 @@ python -m unittest discover -s tests -v
 - `src/whisper_sift` — основное Python-приложение и CLI
 - `src/whisper_sift/application` — use cases и orchestration сценариев
 - `src/whisper_sift/domain` — transcript/question model и чистая extraction-логика
+- `src/whisper_sift/infrastructure` — adapters для `ffmpeg`, filesystem и Whisper backend
 - `tests` — Python-тесты
 - `transcribe_whisper.py` — launcher для прямого запуска без установки пакета
 

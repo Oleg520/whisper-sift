@@ -5,6 +5,8 @@ import shutil
 import subprocess
 import sys
 
+from whisper_sift.infrastructure.whisper_backend import is_fake_transcription_enabled
+
 
 TRANSCRIPTION_DEPENDENCIES = {
     "torch": "torch",
@@ -16,6 +18,9 @@ _dependencies_ready = False
 
 
 def collect_missing_transcription_packages() -> list[str]:
+    if is_fake_transcription_enabled():
+        return []
+
     system_ffmpeg_available = shutil.which("ffmpeg") is not None
     missing_packages: list[str] = []
 
@@ -32,6 +37,10 @@ def ensure_transcription_dependencies() -> None:
     global _dependencies_ready
 
     if _dependencies_ready:
+        return
+
+    if is_fake_transcription_enabled():
+        _dependencies_ready = True
         return
 
     missing_packages = collect_missing_transcription_packages()

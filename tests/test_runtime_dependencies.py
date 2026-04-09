@@ -15,6 +15,14 @@ from whisper_sift.runtime.dependencies import collect_missing_transcription_pack
 
 
 class RuntimeDependencyTests(unittest.TestCase):
+    @patch("whisper_sift.runtime.dependencies.is_fake_transcription_enabled")
+    def test_fake_backend_makes_runtime_dependencies_optional(self, fake_enabled_mock) -> None:
+        fake_enabled_mock.return_value = True
+
+        missing_packages = collect_missing_transcription_packages()
+
+        self.assertEqual([], missing_packages)
+
     @patch("whisper_sift.runtime.dependencies.shutil.which")
     @patch("whisper_sift.runtime.dependencies.importlib.util.find_spec")
     def test_system_ffmpeg_makes_imageio_optional(

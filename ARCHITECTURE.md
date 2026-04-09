@@ -20,7 +20,7 @@
 - `application/` содержит use cases и orchestration сценариев
 - `domain/` содержит transcript/question model и extraction-логику
 - `services/` содержит рабочую логику транскрибации и извлечения вопросов
-- `infrastructure/` отвечает за `ffmpeg`
+- `infrastructure/` отвечает за `ffmpeg`, filesystem adapters и Whisper backend
 - `runtime/` отвечает за диагностику и bootstrap зависимостей
 - `utils/text.py` теперь является совместимой оберткой над domain extraction API
 
@@ -28,7 +28,7 @@
 
 - orchestration use cases уже вынесен из CLI, но пока остаются довольно тонкие result-модели
 - extraction-логика уже вынесена в `domain/`, но её ещё можно дробить по политикам и scoring-слою
-- часть infrastructure side effects уже вынесена в adapters и reporter hooks, но Whisper backend и bootstrap ещё можно изолировать сильнее
+- Whisper backend уже изолирован в infrastructure adapter, но bootstrap/provisioning ещё можно изолировать сильнее
 - базовые CLI/extraction defaults уже централизованы в `config.py`, но richer runtime/config-file сценарии ещё впереди
 - мало структурированных результатов для будущего `json`-экспорта и richer workflows
 

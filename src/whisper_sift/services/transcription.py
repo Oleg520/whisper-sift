@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import torch
-import whisper
-
 from whisper_sift.config import TranscriptionOptions
 from whisper_sift.infrastructure.ffmpeg import ensure_ffmpeg_on_path
-from whisper_sift.infrastructure.filesystem import ensure_existing_file, ensure_output_dir, write_whisper_outputs
+from whisper_sift.infrastructure.filesystem import (
+    ensure_existing_file,
+    ensure_output_dir,
+    write_whisper_outputs,
+)
+from whisper_sift.infrastructure.whisper_backend import load_whisper_backend
 from whisper_sift.runtime.reporting import ProgressReporter, report_progress
 
 
@@ -22,27 +24,31 @@ def transcribe_files(
     ]
     output_dir = ensure_output_dir(options.output_dir)
 
-    ffmpeg_exe = ensure_ffmpeg_on_path()
-    resolved_device = _resolve_device(options.device, reporter=reporter)
-    use_fp16 = resolved_device == "cuda"
+    backend = load_whisper_backend(
+        options.model,
+        options.device,
+        reporter=reporter,
+    )
 
-    report_progress(reporter, f"[ffmpeg]  {ffmpeg_exe}")
-    report_progress(reporter, f"[model]   {options.model}")
-    report_progress(reporter, f"[device]  requested={options.device} resolved={resolved_device}")
-    report_progress(reporter, f"[fp16]    {use_fp16}")
+    if backend.requires_media_runtime:
+        ffmpeg_exe = ensure_ffmpeg_on_path()
+        report_progress(reporter, f"[ffmpeg]  {ffmpeg_exe}")
+    else:
+        report_progress(reporter, "[ffmpeg]  skipped (fixture backend)")
 
-    model = whisper.load_model(options.model, device=resolved_device)
+    report_progress(reporter, f"[model]   {backend.model_name}")
+    report_progress(
+        reporter,
+        f"[device]  requested={options.device} resolved={backend.resolved_device}",
+    )
+    report_progress(reporter, f"[fp16]    {backend.use_fp16}")
     generated_files: list[Path] = []
 
     for resolved_source in resolved_sources:
         report_progress(reporter, f"[start] {resolved_source.name}")
-        result = model.transcribe(
-            str(resolved_source),
-            task="transcribe",
+        result = backend.transcribe_file(
+            resolved_source,
             language=options.language,
-            fp16=use_fp16,
-            verbose=False,
-            temperature=0,
         )
         generated_files.extend(
             write_whisper_outputs(
@@ -55,36 +61,3 @@ def transcribe_files(
         report_progress(reporter, f"[done]  {resolved_source.name}")
 
     return generated_files
-
-
-def _resolve_device(
-    requested_device: str,
-    *,
-    reporter: ProgressReporter | None = None,
-) -> str:
-    normalized = requested_device.strip().lower()
-
-    if normalized == "auto":
-        if torch.cuda.is_available():
-            return "cuda"
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return "mps"
-        return "cpu"
-
-    if normalized == "cuda":
-        if torch.cuda.is_available():
-            return "cuda"
-        report_progress(reporter, "[device]  CUDA requested, but unavailable. Falling back to cpu.")
-        return "cpu"
-
-    if normalized == "mps":
-        if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            return "mps"
-        report_progress(reporter, "[device]  MPS requested, but unavailable. Falling back to cpu.")
-        return "cpu"
-
-    if normalized == "cpu":
-        return "cpu"
-
-    report_progress(reporter, f"[device]  Unknown device '{requested_device}'. Falling back to cpu.")
-    return "cpu"

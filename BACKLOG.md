@@ -58,8 +58,11 @@
 - [x] Централизовать configuration и defaults
   Значения по умолчанию для CLI, pipeline и extraction собраны в `config.py`, а основные слои используют единый набор defaults без дублирования.
 
-- [-] Добавить integration smoke tests на CLI и полный pipeline
-  Уже есть subprocess smoke tests для launcher и `python -m whisper_sift` на реальном `extract-questions` сценарии. Следующий шаг — покрыть транскрибационный путь и полный pipeline без тяжелой Whisper-загрузки.
+- [x] Выделить Whisper backend adapter
+  Сервис транскрибации теперь работает через `infrastructure/whisper_backend.py`, а не зависит от `torch/whisper` напрямую. Это упростило тестирование и дало fixture backend seam для smoke-сценариев.
+
+- [x] Добавить integration smoke tests на CLI и полный pipeline
+  Subprocess smoke tests теперь покрывают launcher и `python -m whisper_sift` для `extract-questions`, `transcribe` и `pipeline`, при этом транскрибационный путь тестируется без тяжелой загрузки модели через fixture backend.
 
 - [ ] Добавить инженерную обвязку
   Подключить `pytest`, `ruff`, CI workflow и базовые автоматические проверки.
@@ -67,11 +70,14 @@
 - [ ] Поддержать speaker-aware улучшения
   Перейти от чисто текстовых эвристик к diarization или хотя бы более точному разделению реплик интервьюера и кандидата.
 
+- [ ] Изолировать bootstrap и runtime provisioning
+  `ensure_transcription_dependencies()` всё ещё делает `pip install` прямо из runtime. Следующий шаг — вынести provisioning в более явный infrastructure/bootstrap слой.
+
 ## Ближайший спринт
 
 - [ ] P1-2 Улучшить эвристику извлечения вопросов
 - [ ] P1-3 Добавить `json`-вывод
-- [-] P2-6 Добавить integration smoke tests на CLI и полный pipeline
+- [ ] P2-7 Изолировать bootstrap и runtime provisioning
 
 ## Идеи на потом
 

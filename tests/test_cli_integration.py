@@ -7,13 +7,48 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_DIR = PROJECT_ROOT / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
+from whisper_sift.config import FAKE_TRANSCRIPTION_TEXT_ENV
+
+
 LAUNCHER = PROJECT_ROOT / "transcribe_whisper.py"
 
 
 class CliIntegrationTests(unittest.TestCase):
+    def test_launcher_transcribe_smoke_with_fixture_backend(self) -> None:
+        transcript = (
+            "Интервьюер: Расскажите про ваш последний проект\n"
+            "Кандидат: Я работал над платежным сервисом.\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            media_path = workspace / "interview.mkv"
+            output_dir = workspace / "results"
+            media_path.write_bytes(b"fake media")
+
+            result = self._run_cli(
+                str(LAUNCHER),
+                "transcribe",
+                str(media_path),
+                "--output-dir",
+                str(output_dir),
+                "--formats",
+                "txt",
+                extra_env={FAKE_TRANSCRIPTION_TEXT_ENV: transcript},
+            )
+
+            self.assertEqual(0, result.returncode, msg=result.stderr or result.stdout)
+            output_path = output_dir / "interview.txt"
+            self.assertTrue(output_path.exists())
+            self.assertEqual(transcript.strip(), output_path.read_text(encoding="utf-8").strip())
+            self.assertIn("[backend] fixture transcription backend enabled", result.stdout)
+            self.assertIn("[done]", result.stdout)
+
     def test_launcher_extract_questions_smoke(self) -> None:
         transcript = (
             "Интервьюер: Расскажите про ваш последний проект\n"
@@ -45,6 +80,49 @@ class CliIntegrationTests(unittest.TestCase):
                 ),
                 output_path.read_text(encoding="utf-8").strip(),
             )
+            self.assertIn("[questions]", result.stdout)
+
+    def test_module_pipeline_smoke_with_fixture_backend(self) -> None:
+        transcript = (
+            "Интервьюер: Расскажите про ваш последний проект\n"
+            "Кандидат: Я работал над платежным сервисом.\n"
+            "Интервьюер: Какие технологии вы использовали?\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            media_path = workspace / "interview.mkv"
+            transcript_dir = workspace / "transcripts"
+            questions_dir = workspace / "questions"
+            media_path.write_bytes(b"fake media")
+
+            result = self._run_cli(
+                "-m",
+                "whisper_sift",
+                "pipeline",
+                str(media_path),
+                "--output-dir",
+                str(transcript_dir),
+                "--questions-dir",
+                str(questions_dir),
+                "--formats",
+                "txt",
+                extra_env={FAKE_TRANSCRIPTION_TEXT_ENV: transcript},
+            )
+
+            self.assertEqual(0, result.returncode, msg=result.stderr or result.stdout)
+            transcript_path = transcript_dir / "interview.txt"
+            questions_path = questions_dir / "interview_questions.txt"
+            self.assertTrue(transcript_path.exists())
+            self.assertTrue(questions_path.exists())
+            self.assertEqual(
+                (
+                    "Расскажите про ваш последний проект?\n"
+                    "Какие технологии вы использовали?"
+                ),
+                questions_path.read_text(encoding="utf-8").strip(),
+            )
+            self.assertIn("[done]", result.stdout)
             self.assertIn("[questions]", result.stdout)
 
     def test_module_extract_questions_smoke_with_explicit_interviewer_label(self) -> None:
@@ -86,13 +164,19 @@ class CliIntegrationTests(unittest.TestCase):
             )
             self.assertIn("[questions]", result.stdout)
 
-    def _run_cli(self, *arguments: str) -> subprocess.CompletedProcess[str]:
+    def _run_cli(
+        self,
+        *arguments: str,
+        extra_env: dict[str, str] | None = None,
+    ) -> subprocess.CompletedProcess[str]:
         env = os.environ.copy()
         pythonpath_parts = [str(SRC_DIR)]
         existing_pythonpath = env.get("PYTHONPATH")
         if existing_pythonpath:
             pythonpath_parts.append(existing_pythonpath)
         env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+        if extra_env:
+            env.update(extra_env)
 
         return subprocess.run(
             [sys.executable, *arguments],

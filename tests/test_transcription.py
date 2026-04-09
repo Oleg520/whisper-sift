@@ -4,7 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -18,10 +18,10 @@ from whisper_sift.services.transcription import transcribe_files
 
 class TranscriptionTests(unittest.TestCase):
     @patch("whisper_sift.services.transcription.ensure_ffmpeg_on_path")
-    @patch("whisper_sift.services.transcription.whisper.load_model")
+    @patch("whisper_sift.services.transcription.load_whisper_backend")
     def test_missing_input_fails_before_runtime_setup(
         self,
-        load_model_mock,
+        load_backend_mock,
         ensure_ffmpeg_mock,
     ) -> None:
         missing_file = PROJECT_ROOT / "missing_audio.mkv"
@@ -36,9 +36,48 @@ class TranscriptionTests(unittest.TestCase):
                     )
                 )
 
-        load_model_mock.assert_not_called()
+        load_backend_mock.assert_not_called()
         ensure_ffmpeg_mock.assert_not_called()
         self.assertFalse(output_dir.exists())
+
+    @patch("whisper_sift.services.transcription.write_whisper_outputs")
+    @patch("whisper_sift.services.transcription.ensure_ffmpeg_on_path")
+    @patch("whisper_sift.services.transcription.load_whisper_backend")
+    def test_transcribe_files_uses_backend_adapter(
+        self,
+        load_backend_mock,
+        ensure_ffmpeg_mock,
+        write_outputs_mock,
+    ) -> None:
+        backend = Mock()
+        backend.model_name = "small"
+        backend.resolved_device = "cpu"
+        backend.use_fp16 = False
+        backend.requires_media_runtime = True
+        backend.transcribe_file.return_value = {"text": "hello"}
+        load_backend_mock.return_value = backend
+        ensure_ffmpeg_mock.return_value = Path("/usr/bin/ffmpeg")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            workspace = Path(temp_dir)
+            source = workspace / "interview.mkv"
+            source.write_bytes(b"fake media")
+            output_dir = workspace / "results"
+            write_outputs_mock.return_value = [output_dir / "interview.txt"]
+
+            result = transcribe_files(
+                TranscriptionOptions(
+                    files=[source],
+                    output_dir=output_dir,
+                    formats=("txt",),
+                )
+            )
+
+        load_backend_mock.assert_called_once_with("small", "auto", reporter=None)
+        ensure_ffmpeg_mock.assert_called_once_with()
+        backend.transcribe_file.assert_called_once()
+        write_outputs_mock.assert_called_once()
+        self.assertEqual([output_dir / "interview.txt"], result)
 
 
 if __name__ == "__main__":

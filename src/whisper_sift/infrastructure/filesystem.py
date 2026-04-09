@@ -3,8 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from whisper.utils import get_writer
-
 
 def ensure_output_dir(path: Path) -> Path:
     resolved = path.resolve()
@@ -49,8 +47,23 @@ def write_whisper_outputs(
     generated_files: list[Path] = []
 
     for output_format in formats:
-        writer = get_writer(output_format, str(output_dir))
-        writer(result, str(source), writer_options)
+        if output_format == "txt":
+            _write_txt_output(
+                result=result,
+                source=source,
+                output_dir=output_dir,
+            )
+        else:
+            from whisper.utils import get_writer
+
+            writer = get_writer(output_format, str(output_dir))
+            writer(result, str(source), writer_options)
         generated_files.append(output_dir / f"{source.stem}.{output_format}")
 
     return generated_files
+
+
+def _write_txt_output(*, result: dict[str, Any], source: Path, output_dir: Path) -> None:
+    text = str(result.get("text", "")).strip()
+    target_path = output_dir / f"{source.stem}.txt"
+    target_path.write_text(f"{text}\n" if text else "", encoding="utf-8")
